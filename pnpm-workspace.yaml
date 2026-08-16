@@ -1,0 +1,15 @@
+# pnpm blocks dependency build scripts until they are named here, and refuses to
+# run while any are left undecided. It writes literal placeholder text for new
+# ones, so every entry below is an explicit decision.
+allowBuilds:
+  esbuild: true
+  "@nestjs/core": true
+  # Downloads the Prisma query engine binary. Without it there is no database
+  # connection at all.
+  "@prisma/engines": true
+  "@prisma/client": true
+  prisma: true
+  # Native resolver binary used by the eslint stack.
+  unrs-resolver: true
+  # Analytics ping only. Denied deliberately rather than left undecided.
+  "@scarf/scarf": false

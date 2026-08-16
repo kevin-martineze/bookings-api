@@ -1,0 +1,392 @@
+// PMS multi-inquilino.
+//
+// Reglas que sostienen todo lo demás:
+//
+//  1. TODO dato de negocio cuelga de una Organization. No existe una fila
+//     "global" que un inquilino pueda ver por accidente.
+//  2. Las reservas se atan a una Unit FÍSICA, nunca a un UnitType. Es lo único
+//     que hace posible la restricción de exclusión que impide la doble reserva
+//     (ver migrations/.../exclusion). Un contador por tipo no se puede proteger
+//     igual bajo concurrencia.
+//  3. El dinero se guarda en enteros de la unidad mínima (centavos). Nunca
+//     Float: 0.1 + 0.2 no es 0.3 y una factura no puede depender de eso.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+// Prisma 7 sacó las URLs de conexión del schema. La de migraciones vive en
+// prisma.config.ts y la de runtime entra por el adapter que recibe
+// PrismaClient (ver src/prisma/prisma.service.ts). Eso resuelve limpio el split
+// de Supabase: migrar por la conexión directa, servir por el pooler.
+datasource db {
+  provider = "postgresql"
+}
+
+// ---------------------------------------------------------------------------
+// Inquilinos e identidad
+// ---------------------------------------------------------------------------
+
+/// Un inquilino: la empresa que opera uno o más alojamientos.
+model Organization {
+  id        String   @id @default(uuid()) @db.Uuid
+  name      String
+  /// Subdominio o identificador en URLs. Único en toda la plataforma.
+  slug      String   @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  memberships Membership[]
+  properties  Property[]
+  guests      Guest[]
+  bookings    Booking[]
+  payments    Payment[]
+
+  @@map("organizations")
+}
+
+/// Cuenta de acceso. Una misma persona puede pertenecer a varias
+/// organizaciones (personal) y además reservar como huésped.
+///
+/// La contraseña no vive aquí: la identidad la maneja el proveedor de auth y
+/// esta tabla solo guarda la referencia. Así el PMS nunca almacena hashes.
+model User {
+  id           String   @id @default(uuid()) @db.Uuid
+  /// Id del proveedor de identidad (Supabase Auth, Auth0, etc.).
+  authProvider String   @map("auth_provider")
+  authSubject  String   @map("auth_subject")
+  email        String   @unique
+  fullName     String?  @map("full_name")
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  memberships Membership[]
+  /// Perfiles de huésped enlazados a esta cuenta, uno por organización.
+  guests      Guest[]
+
+  @@unique([authProvider, authSubject])
+  @@map("users")
+}
+
+enum MemberRole {
+  OWNER
+  MANAGER
+  FRONT_DESK
+  HOUSEKEEPING
+
+  @@map("member_role")
+}
+
+/// Pertenencia de un usuario a una organización, con su rol.
+/// Es la tabla que el guard de la API consulta para autorizar cada petición.
+model Membership {
+  id     String     @id @default(uuid()) @db.Uuid
+  orgId  String     @map("org_id") @db.Uuid
+  userId String     @map("user_id") @db.Uuid
+  role   MemberRole
+
+  createdAt DateTime @default(now())
+
+  organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([orgId, userId])
+  @@index([userId])
+  @@map("memberships")
+}
+
+// ---------------------------------------------------------------------------
+// Inventario
+// ---------------------------------------------------------------------------
+
+/// Un alojamiento físico: hotel, aparthotel, complejo.
+model Property {
+  id       String  @id @default(uuid()) @db.Uuid
+  orgId    String  @map("org_id") @db.Uuid
+  name     String
+  slug     String
+  timezone String  @default("UTC")
+
+  addressLine String? @map("address_line")
+  locality    String?
+  region      String?
+  postalCode  String? @map("postal_code")
+  /// ISO 3166-1 alpha-2. Define impuestos y pasarela disponible.
+  country     String?
+  lat         Decimal? @db.Decimal(9, 6)
+  lng         Decimal? @db.Decimal(9, 6)
+
+  /// Moneda en la que se publican las tarifas. ISO 4217.
+  currency String @default("USD")
+  checkIn  String @default("15:00")
+  checkOut String @default("11:00")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  unitTypes    UnitType[]
+  units        Unit[]
+  bookings     Booking[]
+
+  @@unique([orgId, slug])
+  @@map("properties")
+}
+
+/// Categoría vendible: "Standard Doble", "Suite con terraza".
+/// Es lo que el huésped elige y sobre lo que se fija el precio.
+model UnitType {
+  id         String @id @default(uuid()) @db.Uuid
+  orgId      String @map("org_id") @db.Uuid
+  propertyId String @map("property_id") @db.Uuid
+
+  name        String
+  slug        String
+  description String?
+
+  maxGuests Int @map("max_guests")
+  bedrooms  Int @default(0)
+  beds      Int @default(1)
+  /// Decimal porque medio baño es real.
+  baths     Decimal @default(1) @db.Decimal(3, 1)
+  sizeSqm   Int?    @map("size_sqm")
+
+  /// Tarifa base por noche, en centavos. Las reglas por temporada viven en
+  /// RatePlan; esto es el precio de referencia y el respaldo.
+  basePriceMinor Int @map("base_price_minor")
+
+  /// Noches mínimas por defecto. RatePlan puede sobrescribirlo por fecha.
+  minNights Int @default(1) @map("min_nights")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  property  Property   @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  units     Unit[]
+  ratePlans RatePlan[]
+  bookings  Booking[]
+
+  @@unique([propertyId, slug])
+  @@index([orgId])
+  @@map("unit_types")
+}
+
+/// Una unidad física reservable: la habitación 302, el apartamento B.
+///
+/// Existe aunque el negocio venda por tipo. Es el sujeto de la restricción de
+/// exclusión, y sin ella no hay forma de impedir la doble reserva en la base.
+model Unit {
+  id         String @id @default(uuid()) @db.Uuid
+  orgId      String @map("org_id") @db.Uuid
+  propertyId String @map("property_id") @db.Uuid
+  unitTypeId String @map("unit_type_id") @db.Uuid
+
+  /// Identificador visible para el personal: "302", "Apto B".
+  label String
+  /// Fuera de servicio por mantenimiento: no se le asignan reservas nuevas.
+  active Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  property Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  unitType UnitType @relation(fields: [unitTypeId], references: [id], onDelete: Restrict)
+  bookings Booking[]
+
+  @@unique([propertyId, label])
+  @@index([orgId])
+  @@index([unitTypeId])
+  @@map("units")
+}
+
+/// Precio y restricciones para un rango de fechas. Permite temporada alta,
+/// estadía mínima por fecha y cierres de venta.
+model RatePlan {
+  id         String @id @default(uuid()) @db.Uuid
+  orgId      String @map("org_id") @db.Uuid
+  unitTypeId String @map("unit_type_id") @db.Uuid
+
+  name      String
+  startDate DateTime @map("start_date") @db.Date
+  /// Inclusivo. La noche del endDate se cobra a esta tarifa.
+  endDate   DateTime @map("end_date") @db.Date
+
+  priceMinor Int  @map("price_minor")
+  minNights  Int? @map("min_nights")
+  /// Bloquea la venta en este rango sin borrar el plan.
+  closed     Boolean @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  unitType UnitType @relation(fields: [unitTypeId], references: [id], onDelete: Cascade)
+
+  @@index([orgId])
+  @@index([unitTypeId, startDate, endDate])
+  @@map("rate_plans")
+}
+
+// ---------------------------------------------------------------------------
+// Huéspedes
+// ---------------------------------------------------------------------------
+
+/// Ficha del huésped, por organización.
+///
+/// Deliberadamente NO se guarda documento de identidad ni datos de tarjeta. Lo
+/// primero exige justificación legal y política de retención; lo segundo nunca
+/// debe tocar nuestros servidores — lo maneja la pasarela.
+model Guest {
+  id    String @id @default(uuid()) @db.Uuid
+  orgId String @map("org_id") @db.Uuid
+
+  /// Enlace a la cuenta cuando el huésped se registró en el sitio. Null para
+  /// reservas que el personal carga a mano.
+  userId String? @map("user_id") @db.Uuid
+
+  fullName String  @map("full_name")
+  email    String
+  phone    String?
+  /// Notas internas del personal. Nunca visibles para el huésped.
+  notes    String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  user         User?        @relation(fields: [userId], references: [id], onDelete: SetNull)
+  bookings     Booking[]
+
+  @@unique([orgId, email])
+  @@index([userId])
+  @@map("guests")
+}
+
+// ---------------------------------------------------------------------------
+// Reservas
+// ---------------------------------------------------------------------------
+
+enum BookingStatus {
+  /// Retención temporal mientras se completa el pago. Expira sola.
+  PENDING
+  CONFIRMED
+  CHECKED_IN
+  CHECKED_OUT
+  CANCELLED
+  NO_SHOW
+
+  @@map("booking_status")
+}
+
+enum BookingSource {
+  DIRECT
+  STAFF
+  /// Reservado para cuando entren los canales. Hoy sin uso.
+  CHANNEL
+
+  @@map("booking_source")
+}
+
+/// Una estadía.
+///
+/// `checkOut` es EXCLUSIVO: una reserva del 10 al 12 ocupa las noches 10 y 11,
+/// y libera la unidad el día 12. Es lo que permite que una salida y una entrada
+/// compartan fecha sin solaparse, y la migración construye el daterange como
+/// [checkIn, checkOut) para que la exclusión respete esa semántica.
+model Booking {
+  id         String @id @default(uuid()) @db.Uuid
+  orgId      String @map("org_id") @db.Uuid
+  propertyId String @map("property_id") @db.Uuid
+  unitTypeId String @map("unit_type_id") @db.Uuid
+  /// Unidad física asignada. Se elige entre las libres del tipo al confirmar.
+  unitId     String @map("unit_id") @db.Uuid
+  guestId    String @map("guest_id") @db.Uuid
+
+  /// Código corto que el huésped usa como referencia.
+  reference String @unique
+
+  checkIn  DateTime @map("check_in") @db.Date
+  checkOut DateTime @map("check_out") @db.Date
+  guests   Int      @default(1)
+
+  status BookingStatus @default(PENDING)
+  source BookingSource @default(DIRECT)
+
+  /// Desglose congelado al momento de reservar. Se guarda el total calculado
+  /// porque las tarifas cambian y una reserva pasada debe seguir cuadrando.
+  subtotalMinor Int    @map("subtotal_minor")
+  taxMinor      Int    @default(0) @map("tax_minor")
+  feesMinor     Int    @default(0) @map("fees_minor")
+  totalMinor    Int    @map("total_minor")
+  currency      String
+
+  /// Hasta cuándo vive una reserva PENDING sin pago. Un job la cancela después.
+  holdExpiresAt DateTime? @map("hold_expires_at")
+
+  guestNotes String?   @map("guest_notes")
+  cancelledAt DateTime? @map("cancelled_at")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  property     Property     @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  unitType     UnitType     @relation(fields: [unitTypeId], references: [id], onDelete: Restrict)
+  unit         Unit         @relation(fields: [unitId], references: [id], onDelete: Restrict)
+  guest        Guest        @relation(fields: [guestId], references: [id], onDelete: Restrict)
+  payments     Payment[]
+
+  @@index([orgId])
+  @@index([propertyId, checkIn])
+  @@index([unitId, checkIn])
+  @@index([guestId])
+  @@map("bookings")
+}
+
+// ---------------------------------------------------------------------------
+// Pagos
+// ---------------------------------------------------------------------------
+
+enum PaymentStatus {
+  PENDING
+  AUTHORIZED
+  PAID
+  FAILED
+  REFUNDED
+  PARTIALLY_REFUNDED
+
+  @@map("payment_status")
+}
+
+/// Registro de un intento de cobro.
+///
+/// El PMS no guarda datos de tarjeta ni mueve dinero: cada propiedad conecta su
+/// propia cuenta de pasarela y aquí solo queda la referencia externa. Eso
+/// mantiene el sistema fuera del alcance PCI y evita que la plataforma opere
+/// como intermediario financiero.
+model Payment {
+  id        String @id @default(uuid()) @db.Uuid
+  orgId     String @map("org_id") @db.Uuid
+  bookingId String @map("booking_id") @db.Uuid
+
+  /// "stripe", "mercadopago", "wompi"… La elección depende del país, que sigue
+  /// sin definir, así que el campo es abierto a propósito.
+  provider          String
+  providerPaymentId String? @map("provider_payment_id")
+
+  amountMinor   Int    @map("amount_minor")
+  currency      String
+  refundedMinor Int    @default(0) @map("refunded_minor")
+
+  status PaymentStatus @default(PENDING)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  booking      Booking      @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerPaymentId])
+  @@index([orgId])
+  @@index([bookingId])
+  @@map("payments")
+}

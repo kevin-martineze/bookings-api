@@ -5,10 +5,10 @@ import { PrismaClient } from '@prisma/client';
 /**
  * Cliente de base de datos.
  *
- * Se conecta por `DATABASE_URL`, que en Supabase es la URL del pooler. Las
- * migraciones usan la conexión directa y se configuran aparte, en
- * prisma.config.ts — mezclarlas hace que `migrate` falle con errores poco
- * descriptivos sobre sentencias preparadas.
+ * Se conecta por `DATABASE_URL`. Las migraciones usan `DIRECT_URL` y se
+ * configuran aparte, en prisma.config.ts — mezclarlas hace que `migrate` falle
+ * con errores poco descriptivos sobre sentencias preparadas cuando hay un
+ * pooler en medio.
  */
 @Injectable()
 export class PrismaService extends PrismaClient implements OnModuleInit, OnModuleDestroy {

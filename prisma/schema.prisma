@@ -16,9 +16,13 @@ generator client {
 }
 
 // Prisma 7 sacó las URLs de conexión del schema. La de migraciones vive en
-// prisma.config.ts y la de runtime entra por el adapter que recibe
-// PrismaClient (ver src/prisma/prisma.service.ts). Eso resuelve limpio el split
-// de Supabase: migrar por la conexión directa, servir por el pooler.
+// prisma.config.ts y la de runtime entra por el adapter que recibe PrismaClient
+// (ver src/prisma/prisma.service.ts).
+//
+// Postgres y no un motor de documentos por una razón concreta: la restricción
+// de exclusión que impide la doble reserva. Ningún motor NoSQL ofrece una
+// garantía equivalente de no-solapamiento de rangos, y replicarla a mano deja
+// una ventana de carrera justo donde más caro sale.
 datasource db {
   provider = "postgresql"
 }
@@ -45,27 +49,98 @@ model Organization {
   @@map("organizations")
 }
 
-/// Cuenta de acceso. Una misma persona puede pertenecer a varias
-/// organizaciones (personal) y además reservar como huésped.
+/// Cuenta de acceso, una sola tabla para huéspedes y personal.
 ///
-/// La contraseña no vive aquí: la identidad la maneja el proveedor de auth y
-/// esta tabla solo guarda la referencia. Así el PMS nunca almacena hashes.
+/// Lo que distingue a un empleado no es estar en otra tabla, sino tener una
+/// Membership en alguna organización. Así una misma persona puede trabajar en
+/// una propiedad y reservar en otra con la misma cuenta, y el flujo de login es
+/// uno solo en vez de dos.
 model User {
-  id           String   @id @default(uuid()) @db.Uuid
-  /// Id del proveedor de identidad (Supabase Auth, Auth0, etc.).
-  authProvider String   @map("auth_provider")
-  authSubject  String   @map("auth_subject")
-  email        String   @unique
-  fullName     String?  @map("full_name")
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  id       String  @id @default(uuid()) @db.Uuid
+  email    String  @unique
+  fullName String? @map("full_name")
 
-  memberships Membership[]
+  /// Hash argon2id. Nunca se serializa en una respuesta ni se escribe a logs.
+  /// Nullable para permitir a futuro cuentas creadas por el personal que aún no
+  /// han fijado contraseña, y para dejar la puerta abierta a login social.
+  passwordHash String? @map("password_hash")
+
+  emailVerifiedAt DateTime? @map("email_verified_at")
+
+  /// Freno a la fuerza bruta. El límite por IP vive en el throttler; esto
+  /// protege a una cuenta concreta atacada desde muchas direcciones.
+  failedLoginAttempts Int       @default(0) @map("failed_login_attempts")
+  lockedUntil         DateTime? @map("locked_until")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  memberships   Membership[]
   /// Perfiles de huésped enlazados a esta cuenta, uno por organización.
-  guests      Guest[]
+  guests        Guest[]
+  refreshTokens RefreshToken[]
+  tokens        VerificationToken[]
 
-  @@unique([authProvider, authSubject])
   @@map("users")
+}
+
+enum TokenPurpose {
+  EMAIL_VERIFICATION
+  PASSWORD_RESET
+
+  @@map("token_purpose")
+}
+
+/// Tokens de un solo uso enviados por correo.
+///
+/// Se guarda el SHA-256, nunca el token en claro: el valor real solo existe en
+/// el correo del usuario. Si alguien lee esta tabla no puede tomar cuentas ni
+/// completar un restablecimiento.
+model VerificationToken {
+  id      String       @id @default(uuid()) @db.Uuid
+  userId  String       @map("user_id") @db.Uuid
+  purpose TokenPurpose
+
+  tokenHash  String    @unique @map("token_hash")
+  expiresAt  DateTime  @map("expires_at")
+  /// Marca el uso. Un token consumido no vuelve a servir aunque no haya vencido.
+  consumedAt DateTime? @map("consumed_at")
+
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, purpose])
+  @@map("verification_tokens")
+}
+
+/// Refresh tokens con rotación.
+///
+/// Cada uso emite uno nuevo y revoca el anterior. `familyId` encadena toda la
+/// descendencia de un login: si llega un token YA rotado, significa que alguien
+/// se quedó con una copia, así que se revoca la familia completa y se fuerza a
+/// entrar de nuevo. Sin esa detección, un token robado sirve indefinidamente.
+model RefreshToken {
+  id     String @id @default(uuid()) @db.Uuid
+  userId String @map("user_id") @db.Uuid
+
+  tokenHash String @unique @map("token_hash")
+  familyId  String @map("family_id") @db.Uuid
+
+  expiresAt DateTime  @map("expires_at")
+  revokedAt DateTime? @map("revoked_at")
+
+  /// Contexto para que el usuario reconozca sus sesiones y pueda cerrarlas.
+  userAgent String? @map("user_agent")
+  ip        String?
+
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([familyId])
+  @@map("refresh_tokens")
 }
 
 enum MemberRole {

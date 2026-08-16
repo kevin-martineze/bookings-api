@@ -4,9 +4,10 @@ import { defineConfig, env } from 'prisma/config';
 /**
  * Configuración de las herramientas de Prisma (migrate, introspect, studio).
  *
- * Ojo con cuál URL va aquí: `prisma migrate` usa sentencias que el pooler de
- * Supabase no soporta, así que esto apunta a la conexión DIRECTA. La aplicación
- * en cambio se conecta por el pooler, y esa URL se pasa al adapter en
+ * Apunta a `DIRECT_URL`, la conexión sin pooler. Varios Postgres gestionados
+ * sirven la aplicación por un pooler en modo transacción que no soporta las
+ * sentencias que usa migrate; cuando el proveedor no distingue, ambas variables
+ * llevan la misma URL. La aplicación se conecta aparte, por el adapter en
  * src/prisma/prisma.service.ts.
  */
 export default defineConfig({

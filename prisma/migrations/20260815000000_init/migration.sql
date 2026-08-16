@@ -2,6 +2,9 @@
 CREATE SCHEMA IF NOT EXISTS "public";
 
 -- CreateEnum
+CREATE TYPE "token_purpose" AS ENUM ('EMAIL_VERIFICATION', 'PASSWORD_RESET');
+
+-- CreateEnum
 CREATE TYPE "member_role" AS ENUM ('OWNER', 'MANAGER', 'FRONT_DESK', 'HOUSEKEEPING');
 
 -- CreateEnum
@@ -27,14 +30,44 @@ CREATE TABLE "organizations" (
 -- CreateTable
 CREATE TABLE "users" (
     "id" UUID NOT NULL,
-    "auth_provider" TEXT NOT NULL,
-    "auth_subject" TEXT NOT NULL,
     "email" TEXT NOT NULL,
     "full_name" TEXT,
+    "password_hash" TEXT,
+    "email_verified_at" TIMESTAMP(3),
+    "failed_login_attempts" INTEGER NOT NULL DEFAULT 0,
+    "locked_until" TIMESTAMP(3),
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
 
     CONSTRAINT "users_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "verification_tokens" (
+    "id" UUID NOT NULL,
+    "user_id" UUID NOT NULL,
+    "purpose" "token_purpose" NOT NULL,
+    "token_hash" TEXT NOT NULL,
+    "expires_at" TIMESTAMP(3) NOT NULL,
+    "consumed_at" TIMESTAMP(3),
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "verification_tokens_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "refresh_tokens" (
+    "id" UUID NOT NULL,
+    "user_id" UUID NOT NULL,
+    "token_hash" TEXT NOT NULL,
+    "family_id" UUID NOT NULL,
+    "expires_at" TIMESTAMP(3) NOT NULL,
+    "revoked_at" TIMESTAMP(3),
+    "user_agent" TEXT,
+    "ip" TEXT,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "refresh_tokens_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
@@ -190,7 +223,19 @@ CREATE UNIQUE INDEX "organizations_slug_key" ON "organizations"("slug");
 CREATE UNIQUE INDEX "users_email_key" ON "users"("email");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "users_auth_provider_auth_subject_key" ON "users"("auth_provider", "auth_subject");
+CREATE UNIQUE INDEX "verification_tokens_token_hash_key" ON "verification_tokens"("token_hash");
+
+-- CreateIndex
+CREATE INDEX "verification_tokens_user_id_purpose_idx" ON "verification_tokens"("user_id", "purpose");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "refresh_tokens_token_hash_key" ON "refresh_tokens"("token_hash");
+
+-- CreateIndex
+CREATE INDEX "refresh_tokens_user_id_idx" ON "refresh_tokens"("user_id");
+
+-- CreateIndex
+CREATE INDEX "refresh_tokens_family_id_idx" ON "refresh_tokens"("family_id");
 
 -- CreateIndex
 CREATE INDEX "memberships_user_id_idx" ON "memberships"("user_id");
@@ -251,6 +296,12 @@ CREATE INDEX "payments_booking_id_idx" ON "payments"("booking_id");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "payments_provider_provider_payment_id_key" ON "payments"("provider", "provider_payment_id");
+
+-- AddForeignKey
+ALTER TABLE "verification_tokens" ADD CONSTRAINT "verification_tokens_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "refresh_tokens" ADD CONSTRAINT "refresh_tokens_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "memberships" ADD CONSTRAINT "memberships_org_id_fkey" FOREIGN KEY ("org_id") REFERENCES "organizations"("id") ON DELETE CASCADE ON UPDATE CASCADE;

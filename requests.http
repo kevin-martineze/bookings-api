@@ -1,0 +1,109 @@
+### Daughters of Sun — API de prueba
+### Requiere la extensión "REST Client" (Huachao Mao) para el botón "Send Request".
+### Servidor: pnpm run start:dev (puerto 3000). Datos: pnpm run seed.
+
+@baseUrl = http://localhost:3000
+@orgId = 0fb476e3-f475-406e-abbe-0ad1e3dc53c3
+@propertyId = 5a429b81-bf13-476b-97d8-409bb7a55c4b
+@standardDobleId = e2ee9954-d2ac-4608-9552-5fee02bf3263
+@suiteTerrazaId = 17160091-ac11-42da-b848-dba2636bf61d
+
+### 1. Login como Julius (OWNER)
+# @name loginOwner
+POST {{baseUrl}}/auth/login
+Content-Type: application/json
+
+{
+  "email": "julius@daughtersofsun.test",
+  "password": "OwnerDev123!"
+}
+
+### 2. Quién soy (usa el token de arriba automáticamente)
+GET {{baseUrl}}/auth/me
+Authorization: Bearer {{loginOwner.response.body.accessToken}}
+
+### 3. Ver el catálogo: propiedades de la org
+GET {{baseUrl}}/orgs/{{orgId}}/properties
+Authorization: Bearer {{loginOwner.response.body.accessToken}}
+
+### 4. Ver los tipos de unidad de la property
+GET {{baseUrl}}/orgs/{{orgId}}/properties/{{propertyId}}/unit-types
+Authorization: Bearer {{loginOwner.response.body.accessToken}}
+
+### 5. Disponibilidad de Standard Doble en un rango de fechas
+### Cambiá las fechas a gusto — hoy hay reservas de prueba dispersas en varios rangos.
+GET {{baseUrl}}/orgs/{{orgId}}/properties/{{propertyId}}/unit-types/{{standardDobleId}}/availability?checkIn=2027-03-01&checkOut=2027-03-05
+Authorization: Bearer {{loginOwner.response.body.accessToken}}
+
+### 6. Crear una reserva (asigna unidad automático, calcula precio)
+# @name createBooking
+POST {{baseUrl}}/orgs/{{orgId}}/properties/{{propertyId}}/bookings
+Authorization: Bearer {{loginOwner.response.body.accessToken}}
+Content-Type: application/json
+
+{
+  "unitTypeId": "{{standardDobleId}}",
+  "checkIn": "2027-03-01",
+  "checkOut": "2027-03-05",
+  "guests": 2,
+  "guestFullName": "Prueba Manual",
+  "guestEmail": "prueba.manual@example.com",
+  "guestPhone": "+507 6000-0000"
+}
+
+### 7. Repetir disponibilidad — debería bajar en 1
+GET {{baseUrl}}/orgs/{{orgId}}/properties/{{propertyId}}/unit-types/{{standardDobleId}}/availability?checkIn=2027-03-01&checkOut=2027-03-05
+Authorization: Bearer {{loginOwner.response.body.accessToken}}
+
+### 8. Listar todas las reservas de la property
+GET {{baseUrl}}/orgs/{{orgId}}/properties/{{propertyId}}/bookings
+Authorization: Bearer {{loginOwner.response.body.accessToken}}
+
+### 9. Check-in de la reserva que acabás de crear
+POST {{baseUrl}}/orgs/{{orgId}}/properties/{{propertyId}}/bookings/{{createBooking.response.body.id}}/check-in
+Authorization: Bearer {{loginOwner.response.body.accessToken}}
+
+### 10. Check-out
+POST {{baseUrl}}/orgs/{{orgId}}/properties/{{propertyId}}/bookings/{{createBooking.response.body.id}}/check-out
+Authorization: Bearer {{loginOwner.response.body.accessToken}}
+
+### 11. Intentar check-in de nuevo sobre una reserva ya CHECKED_OUT — debería dar 400
+POST {{baseUrl}}/orgs/{{orgId}}/properties/{{propertyId}}/bookings/{{createBooking.response.body.id}}/check-in
+Authorization: Bearer {{loginOwner.response.body.accessToken}}
+
+### ---------------------------------------------------------------------
+### Rol: recepción (FRONT_DESK) — puede crear reservas, no puede crear catálogo
+### ---------------------------------------------------------------------
+
+### 12. Login como recepción
+# @name loginFrontDesk
+POST {{baseUrl}}/auth/login
+Content-Type: application/json
+
+{
+  "email": "recepcion@daughtersofsun.test",
+  "password": "FrontDeskDev123!"
+}
+
+### 13. Recepción SÍ puede crear una reserva
+POST {{baseUrl}}/orgs/{{orgId}}/properties/{{propertyId}}/bookings
+Authorization: Bearer {{loginFrontDesk.response.body.accessToken}}
+Content-Type: application/json
+
+{
+  "unitTypeId": "{{suiteTerrazaId}}",
+  "checkIn": "2027-04-01",
+  "checkOut": "2027-04-03",
+  "guestFullName": "Otra Prueba",
+  "guestEmail": "otra.prueba@example.com"
+}
+
+### 14. Recepción NO puede crear una property nueva — 403 esperado
+POST {{baseUrl}}/orgs/{{orgId}}/properties
+Authorization: Bearer {{loginFrontDesk.response.body.accessToken}}
+Content-Type: application/json
+
+{
+  "name": "Intento no autorizado",
+  "slug": "intento-no-autorizado"
+}

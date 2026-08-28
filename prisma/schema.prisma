@@ -196,6 +196,14 @@ model Property {
   checkIn  String @default("15:00")
   checkOut String @default("11:00")
 
+  /// Impuesto sobre hospedaje, en porcentaje entero. 10 es el ITBMS panameño.
+  ///
+  /// Vive como dato de la propiedad y no como constante en el código: si la
+  /// tasa cambia, o si entra un alojamiento con otro tratamiento fiscal, es un
+  /// UPDATE y no un despliegue. Las tarifas se publican SIN impuesto y este se
+  /// suma al cotizar — por eso Booking guarda subtotal e impuesto por separado.
+  taxRatePct Int @default(10) @map("tax_rate_pct")
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -287,6 +295,17 @@ model RatePlan {
   endDate   DateTime @map("end_date") @db.Date
 
   priceMinor Int  @map("price_minor")
+
+  /// Tarifa de las noches de viernes y sábado dentro de este rango.
+  ///
+  /// Null = el mismo precio todos los días. Existe porque el fin de semana es
+  /// el producto de un hotel de playa con sports bar: sin este campo, cobrar
+  /// más el viernes obligaría a crear un plan por cada fin de semana del año.
+  ///
+  /// Qué días cuentan como fin de semana es una decisión del hotel; acá son
+  /// viernes y sábado — el domingo por la noche la gente se vuelve a casa.
+  weekendPriceMinor Int? @map("weekend_price_minor")
+
   minNights  Int? @map("min_nights")
   /// Bloquea la venta en este rango sin borrar el plan.
   closed     Boolean @default(false)

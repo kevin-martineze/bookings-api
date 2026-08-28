@@ -9,6 +9,8 @@ allowBuilds:
   "@prisma/engines": true
   "@prisma/client": true
   prisma: true
+  # Compila el binding nativo de hashing argon2id contra password_hash.
+  argon2: true
   # Native resolver binary used by the eslint stack.
   unrs-resolver: true
   # Analytics ping only. Denied deliberately rather than left undecided.

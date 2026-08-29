@@ -1,3 +1,5 @@
+import { layout } from './mail.layout';
+
 /**
  * Los cuatro correos que el sistema necesita hoy.
  *
@@ -9,37 +11,47 @@
  * inglés y la confirmación en español. Se vio en una prueba real antes de que
  * llegara a nadie.
  *
- * El HTML es deliberadamente pobre: tablas no, CSS externo no, imágenes no. Los
- * clientes de correo son un pantano —Outlook renderiza con Word— y un correo
- * transaccional que no se lee vale menos que uno feo que sí. El texto plano dice
- * exactamente lo mismo, no es un resumen.
+ * Cada correo va con HTML **y** texto plano, y el texto plano no es un resumen:
+ * dice lo mismo. Hay clientes que no muestran HTML y filtros que penalizan los
+ * mensajes que sólo lo traen.
+ *
+ * La maqueta vive en `mail.layout.ts` junto con las razones de cada regla.
  */
 
 export type Locale = 'es' | 'en';
 
 export type Mail = { subject: string; text: string; html: string };
 
-/** Envoltura mínima común. Sin logo: la marca todavía no existe. */
-function wrap(bodyHtml: string): string {
-  return `<div style="font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;font-size:15px;line-height:1.55;color:#1c1c1a;max-width:520px">
-${bodyHtml}
-</div>`;
-}
-
+/**
+ * Mismo criterio que el panel: `$` y no el código de moneda, y sin centavos
+ * cuando el importe es redondo. Un correo que dice "$495.00" al lado de un
+ * panel que dice "$495" hace dudar de cuál es el número bueno.
+ */
 function money(amountMinor: number, currency: string): string {
   return new Intl.NumberFormat('es-PA', {
     style: 'currency',
     currency,
     currencyDisplay: 'narrowSymbol',
+    minimumFractionDigits: amountMinor % 100 === 0 ? 0 : 2,
+    maximumFractionDigits: 2,
   }).format(amountMinor / 100);
+}
+
+/** Fecha legible sin depender del cliente de correo. */
+function day(iso: string, locale: Locale): string {
+  return new Intl.DateTimeFormat(locale === 'en' ? 'en-US' : 'es-PA', {
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+    timeZone: 'UTC',
+  }).format(new Date(`${iso}T00:00:00.000Z`));
 }
 
 // --- Recuperación de contraseña ---------------------------------------------
 
-export function passwordReset(
-  link: string,
-  locale: Locale = 'es',
-): Mail {
+export function passwordReset(link: string, locale: Locale = 'es'): Mail {
+  const brand = 'Daughters of Sun';
+
   if (locale === 'en') {
     return {
       subject: 'Reset your password',
@@ -51,11 +63,19 @@ export function passwordReset(
         'The link works once and expires in an hour.',
         'If it was not you, ignore this message — nothing changed.',
       ].join('\n'),
-      html: wrap(`
-<p>Someone asked to reset the password for this account.</p>
-<p><a href="${link}">Choose a new password</a></p>
-<p style="color:#6b6b66;font-size:13px">The link works once and expires in an hour.<br>
-If it was not you, ignore this message — nothing changed.</p>`),
+      html: layout({
+        preheader: 'The link works once and expires in an hour.',
+        brand,
+        eyebrow: 'Management system',
+        accent: 'palm',
+        title: 'Choose a new password',
+        paragraphs: [
+          'Someone asked to reset the password for this account. If it was you, use the button below.',
+        ],
+        action: { label: 'Choose a new password', url: link },
+        note: 'The link works once and expires in an hour. If it was not you, ignore this message — nothing changed.',
+        footer: [brand, 'David, Chiriquí · Panama'],
+      }),
     };
   }
 
@@ -69,11 +89,19 @@ If it was not you, ignore this message — nothing changed.</p>`),
       'El enlace sirve una sola vez y vence en una hora.',
       'Si no fuiste vos, ignorá este mensaje — no cambió nada.',
     ].join('\n'),
-    html: wrap(`
-<p>Alguien pidió restablecer la contraseña de esta cuenta.</p>
-<p><a href="${link}">Elegir una contraseña nueva</a></p>
-<p style="color:#6b6b66;font-size:13px">El enlace sirve una sola vez y vence en una hora.<br>
-Si no fuiste vos, ignorá este mensaje — no cambió nada.</p>`),
+    html: layout({
+      preheader: 'El enlace sirve una sola vez y vence en una hora.',
+      brand,
+      eyebrow: 'Sistema de gestión',
+      accent: 'palm',
+      title: 'Elegí una contraseña nueva',
+      paragraphs: [
+        'Alguien pidió restablecer la contraseña de esta cuenta. Si fuiste vos, usá el botón de abajo.',
+      ],
+      action: { label: 'Elegir una contraseña nueva', url: link },
+      note: 'El enlace sirve una sola vez y vence en una hora. Si no fuiste vos, ignorá este mensaje — no cambió nada.',
+      footer: [brand, 'David, Chiriquí · Panamá'],
+    }),
   };
 }
 
@@ -91,13 +119,41 @@ export type BookingMailData = {
   currency: string;
 };
 
+function detailsFor(data: BookingMailData, locale: Locale) {
+  const total = money(data.totalMinor, data.currency);
+  const nights =
+    locale === 'en'
+      ? `${data.nights} ${data.nights === 1 ? 'night' : 'nights'}`
+      : `${data.nights} ${data.nights === 1 ? 'noche' : 'noches'}`;
+
+  return locale === 'en'
+    ? [
+        { label: 'Room', value: data.unitTypeName },
+        { label: 'Check-in', value: `${day(data.checkIn, locale)} · from 15:00` },
+        { label: 'Check-out', value: `${day(data.checkOut, locale)} · until 11:00` },
+        { label: 'Nights', value: nights },
+        { label: 'Total', value: total, strong: true },
+      ]
+    : [
+        { label: 'Habitación', value: data.unitTypeName },
+        { label: 'Entrada', value: `${day(data.checkIn, locale)} · desde las 15:00` },
+        { label: 'Salida', value: `${day(data.checkOut, locale)} · hasta las 11:00` },
+        { label: 'Noches', value: nights },
+        { label: 'Total', value: total, strong: true },
+      ];
+}
+
 /**
  * Solicitud recibida.
  *
  * **No dice "reserva confirmada" en ninguna parte**, y es la decisión más
- * importante de este archivo: sin pagos, lo que el huésped tiene es una
- * solicitud que el hotel todavía puede rechazar. Un correo que diga otra cosa
- * deja a alguien viajando a Chiriquí con una habitación que nadie le apartó.
+ * importante de este archivo — hay un test que la protege en los dos idiomas.
+ * Sin pagos, lo que el huésped tiene es una solicitud que el hotel todavía
+ * puede rechazar. Un correo que diga otra cosa deja a alguien viajando a
+ * Chiriquí con una habitación que nadie le apartó.
+ *
+ * Por eso la franja va en amarillo y no en verde: el color dice "esperá" antes
+ * de que se lea una palabra.
  */
 export function bookingRequested(
   data: BookingMailData,
@@ -116,20 +172,29 @@ export function bookingRequested(
         '',
         `Reference: ${data.reference}`,
         `Room:      ${data.unitTypeName}`,
-        `Dates:     ${data.checkIn} to ${data.checkOut} (${data.nights} nights)`,
+        `Dates:     ${day(data.checkIn, locale)} to ${day(data.checkOut, locale)} (${data.nights} nights)`,
         `Estimated: ${total}`,
         '',
         'We are holding the room for 48 hours while the hotel replies.',
         data.propertyName,
       ].join('\n'),
-      html: wrap(`
-<p>Hi ${data.guestName},</p>
-<p>We received your booking request. <strong>This is not a confirmed booking yet</strong>: the hotel reviews it and writes back to confirm and arrange payment.</p>
-<p><strong>Reference ${data.reference}</strong><br>
-${data.unitTypeName}<br>
-${data.checkIn} → ${data.checkOut} · ${data.nights} nights<br>
-Estimated total: ${total}</p>
-<p style="color:#6b6b66;font-size:13px">We are holding the room for 48 hours while the hotel replies.<br>${data.propertyName}</p>`),
+      html: layout({
+        preheader: 'Not confirmed yet — the hotel replies within 48 hours.',
+        brand: data.propertyName,
+        eyebrow: 'Request received',
+        accent: 'butter',
+        title: `Thank you, ${data.guestName}`,
+        paragraphs: [
+          'We received your booking request and passed it to the hotel.',
+          'We are holding the room for 48 hours while they reply.',
+        ],
+        callout:
+          'This is not a confirmed booking yet — the hotel reviews it and writes back to confirm and arrange payment.',
+        reference: { label: 'Your reference', value: data.reference },
+        details: detailsFor(data, locale),
+        note: 'The total is an estimate and includes tax. Keep this reference — you will need it if you write to us.',
+        footer: [data.propertyName, 'David, Chiriquí · Panama'],
+      }),
     };
   }
 
@@ -143,24 +208,33 @@ Estimated total: ${total}</p>
       '',
       `Referencia: ${data.reference}`,
       `Habitación: ${data.unitTypeName}`,
-      `Fechas:     ${data.checkIn} al ${data.checkOut} (${data.nights} noches)`,
+      `Fechas:     ${day(data.checkIn, locale)} al ${day(data.checkOut, locale)} (${data.nights} noches)`,
       `Estimado:   ${total}`,
       '',
       'Apartamos la habitación 48 horas mientras el hotel responde.',
       data.propertyName,
     ].join('\n'),
-    html: wrap(`
-<p>Hola ${data.guestName}:</p>
-<p>Recibimos tu solicitud de reserva. <strong>Todavía no es una reserva confirmada</strong>: el hotel la revisa y te escribe para confirmarla y coordinar el pago.</p>
-<p><strong>Referencia ${data.reference}</strong><br>
-${data.unitTypeName}<br>
-${data.checkIn} → ${data.checkOut} · ${data.nights} noches<br>
-Total estimado: ${total}</p>
-<p style="color:#6b6b66;font-size:13px">Apartamos la habitación 48 horas mientras el hotel responde.<br>${data.propertyName}</p>`),
+    html: layout({
+      preheader: 'Todavía no está confirmada — el hotel responde en 48 horas.',
+      brand: data.propertyName,
+      eyebrow: 'Solicitud recibida',
+      accent: 'butter',
+      title: `Gracias, ${data.guestName}`,
+      paragraphs: [
+        'Recibimos tu solicitud de reserva y se la pasamos al hotel.',
+        'Apartamos la habitación 48 horas mientras responden.',
+      ],
+      callout:
+        'Todavía no es una reserva confirmada: el hotel la revisa y te escribe para confirmarla y coordinar el pago.',
+      reference: { label: 'Tu referencia', value: data.reference },
+      details: detailsFor(data, locale),
+      note: 'El total es estimado e incluye el ITBMS. Guardá esta referencia: te la vamos a pedir si nos escribís.',
+      footer: [data.propertyName, 'David, Chiriquí · Panamá'],
+    }),
   };
 }
 
-/** Ahora sí: el hotel la aceptó. */
+/** Ahora sí: el hotel la aceptó. Franja verde. */
 export function bookingConfirmed(
   data: BookingMailData,
   locale: Locale = 'es',
@@ -177,22 +251,27 @@ export function bookingConfirmed(
         '',
         `Reference: ${data.reference}`,
         `Room:      ${data.unitTypeName}`,
-        `Dates:     ${data.checkIn} to ${data.checkOut} (${data.nights} nights)`,
+        `Dates:     ${day(data.checkIn, locale)} to ${day(data.checkOut, locale)} (${data.nights} nights)`,
         `Total:     ${total}`,
         '',
         'Check-in from 15:00, check-out until 11:00.',
         'Reply to this email if anything changes.',
         data.propertyName,
       ].join('\n'),
-      html: wrap(`
-<p>Hi ${data.guestName},</p>
-<p>Your booking is confirmed. We look forward to having you.</p>
-<p><strong>Reference ${data.reference}</strong><br>
-${data.unitTypeName}<br>
-${data.checkIn} → ${data.checkOut} · ${data.nights} nights<br>
-Total: ${total}</p>
-<p style="color:#6b6b66;font-size:13px">Check-in from 15:00, check-out until 11:00.<br>
-Reply to this email if anything changes.<br>${data.propertyName}</p>`),
+      html: layout({
+        preheader: `Confirmed · ${day(data.checkIn, locale)} → ${day(data.checkOut, locale)}`,
+        brand: data.propertyName,
+        eyebrow: 'Confirmed',
+        accent: 'palm',
+        title: `See you soon, ${data.guestName}`,
+        paragraphs: [
+          'Your booking is confirmed. We look forward to having you.',
+        ],
+        reference: { label: 'Your reference', value: data.reference },
+        details: detailsFor(data, locale),
+        note: 'Reply to this email if anything changes — a delayed flight, an extra guest, an earlier arrival.',
+        footer: [data.propertyName, 'David, Chiriquí · Panama'],
+      }),
     };
   }
 
@@ -205,22 +284,25 @@ Reply to this email if anything changes.<br>${data.propertyName}</p>`),
       '',
       `Referencia: ${data.reference}`,
       `Habitación: ${data.unitTypeName}`,
-      `Fechas:     ${data.checkIn} al ${data.checkOut} (${data.nights} noches)`,
+      `Fechas:     ${day(data.checkIn, locale)} al ${day(data.checkOut, locale)} (${data.nights} noches)`,
       `Total:      ${total}`,
       '',
       'Check-in desde las 15:00, check-out hasta las 11:00.',
       'Respondé este correo si algo cambia.',
       data.propertyName,
     ].join('\n'),
-    html: wrap(`
-<p>Hola ${data.guestName}:</p>
-<p>Tu reserva está confirmada. Te esperamos.</p>
-<p><strong>Referencia ${data.reference}</strong><br>
-${data.unitTypeName}<br>
-${data.checkIn} → ${data.checkOut} · ${data.nights} noches<br>
-Total: ${total}</p>
-<p style="color:#6b6b66;font-size:13px">Check-in desde las 15:00, check-out hasta las 11:00.<br>
-Respondé este correo si algo cambia.<br>${data.propertyName}</p>`),
+    html: layout({
+      preheader: `Confirmada · ${day(data.checkIn, locale)} → ${day(data.checkOut, locale)}`,
+      brand: data.propertyName,
+      eyebrow: 'Confirmada',
+      accent: 'palm',
+      title: `Te esperamos, ${data.guestName}`,
+      paragraphs: ['Tu reserva está confirmada. Te esperamos.'],
+      reference: { label: 'Tu referencia', value: data.reference },
+      details: detailsFor(data, locale),
+      note: 'Respondé este correo si algo cambia: un vuelo demorado, un huésped más, una llegada más temprano.',
+      footer: [data.propertyName, 'David, Chiriquí · Panamá'],
+    }),
   };
 }
 
@@ -229,8 +311,10 @@ Respondé este correo si algo cambia.<br>${data.propertyName}</p>`),
  *
  * Sin explicar por qué: la cancelación puede ser del huésped, del hotel o el
  * vencimiento de una retención, y el sistema no distingue. Inventar un motivo
- * en el correo es peor que no darlo — el huésped llama igual, pero además
- * desconfiando.
+ * es peor que no darlo — el huésped llama igual, pero además desconfiando.
+ *
+ * Franja gris y no roja: no es una alarma, y un correo que grita cuando alguien
+ * canceló su propio viaje es de mal gusto.
  */
 export function bookingCancelled(
   data: BookingMailData,
@@ -242,15 +326,30 @@ export function bookingCancelled(
       text: [
         `Hi ${data.guestName},`,
         '',
-        `Booking ${data.reference} (${data.checkIn} to ${data.checkOut}) was cancelled.`,
+        `Booking ${data.reference} (${day(data.checkIn, locale)} to ${day(data.checkOut, locale)}) was cancelled.`,
         '',
         'If this was not what you expected, reply to this email and we will sort it out.',
         data.propertyName,
       ].join('\n'),
-      html: wrap(`
-<p>Hi ${data.guestName},</p>
-<p>Booking <strong>${data.reference}</strong> (${data.checkIn} → ${data.checkOut}) was cancelled.</p>
-<p style="color:#6b6b66;font-size:13px">If this was not what you expected, reply to this email and we will sort it out.<br>${data.propertyName}</p>`),
+      html: layout({
+        preheader: `Booking ${data.reference} was cancelled.`,
+        brand: data.propertyName,
+        eyebrow: 'Cancelled',
+        accent: 'muted',
+        title: 'Your booking was cancelled',
+        paragraphs: [
+          `Hi ${data.guestName}, booking ${data.reference} was cancelled and the room is free again.`,
+        ],
+        details: [
+          { label: 'Room', value: data.unitTypeName },
+          {
+            label: 'Dates',
+            value: `${day(data.checkIn, locale)} → ${day(data.checkOut, locale)}`,
+          },
+        ],
+        note: 'If this was not what you expected, reply to this email and we will sort it out.',
+        footer: [data.propertyName, 'David, Chiriquí · Panama'],
+      }),
     };
   }
 
@@ -259,14 +358,29 @@ export function bookingCancelled(
     text: [
       `Hola ${data.guestName}:`,
       '',
-      `La reserva ${data.reference} (${data.checkIn} al ${data.checkOut}) quedó cancelada.`,
+      `La reserva ${data.reference} (${day(data.checkIn, locale)} al ${day(data.checkOut, locale)}) quedó cancelada.`,
       '',
       'Si no era lo que esperabas, respondé este correo y lo resolvemos.',
       data.propertyName,
     ].join('\n'),
-    html: wrap(`
-<p>Hola ${data.guestName}:</p>
-<p>La reserva <strong>${data.reference}</strong> (${data.checkIn} → ${data.checkOut}) quedó cancelada.</p>
-<p style="color:#6b6b66;font-size:13px">Si no era lo que esperabas, respondé este correo y lo resolvemos.<br>${data.propertyName}</p>`),
+    html: layout({
+      preheader: `La reserva ${data.reference} quedó cancelada.`,
+      brand: data.propertyName,
+      eyebrow: 'Cancelada',
+      accent: 'muted',
+      title: 'Se canceló tu reserva',
+      paragraphs: [
+        `Hola ${data.guestName}: la reserva ${data.reference} quedó cancelada y la habitación volvió a estar disponible.`,
+      ],
+      details: [
+        { label: 'Habitación', value: data.unitTypeName },
+        {
+          label: 'Fechas',
+          value: `${day(data.checkIn, locale)} → ${day(data.checkOut, locale)}`,
+        },
+      ],
+      note: 'Si no era lo que esperabas, respondé este correo y lo resolvemos.',
+      footer: [data.propertyName, 'David, Chiriquí · Panamá'],
+    }),
   };
 }

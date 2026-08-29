@@ -45,13 +45,31 @@ export class MailService implements OnModuleInit {
     if (this.mode === 'log') return null;
 
     if (this.mode === 'ethereal') {
-      /* Ethereal crea una cuenta descartable en el momento. No hay que
-         registrarse ni verificar un dominio, y cada mensaje queda accesible en
-         una URL — que es la única forma honesta de revisar un correo: viéndolo
-         como le llega al huésped, no leyendo el HTML en la consola. */
+      /* Con credenciales fijas, todos los correos caen en la MISMA bandeja y se
+         entra a verlos en ethereal.email cuando se quiera. Sin ellas se crea
+         una cuenta descartable, distinta en cada arranque: sirve para una
+         verificación suelta, pero los mensajes de la corrida anterior quedan en
+         una casilla a la que ya no se vuelve.
+         Por eso las credenciales fijas son el camino recomendado para trabajar
+         los textos, y la cuenta al vuelo el que no necesita ninguna
+         configuración. */
+      const user = process.env.ETHEREAL_USER;
+      const pass = process.env.ETHEREAL_PASSWORD;
+
+      if (user && pass) {
+        this.logger.log(`Correo en modo ethereal. Bandeja fija: ${user}`);
+        return nodemailer.createTransport({
+          host: 'smtp.ethereal.email',
+          port: 587,
+          secure: false,
+          auth: { user, pass },
+        });
+      }
+
       const account = await nodemailer.createTestAccount();
       this.logger.log(
-        `Correo en modo ethereal. Casilla de prueba: ${account.user}`,
+        `Correo en modo ethereal, cuenta descartable: ${account.user}. ` +
+          'Para que todos los mensajes queden en una bandeja fija, poné ETHEREAL_USER y ETHEREAL_PASSWORD.',
       );
       return nodemailer.createTransport({
         host: account.smtp.host,

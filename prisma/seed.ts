@@ -162,6 +162,7 @@ async function main() {
     standardDoubleId: standardDouble.id,
     suiteTerrazaId: suiteTerraza.id,
     basePriceMinor: standardDouble.basePriceMinor,
+    taxRatePct: property.taxRatePct,
     units,
   });
 
@@ -296,6 +297,7 @@ async function seedTodayBookings(
     standardDoubleId: string;
     suiteTerrazaId: string;
     basePriceMinor: number;
+    taxRatePct: number;
     units: Map<string, string>;
   },
 ): Promise<number> {
@@ -308,6 +310,16 @@ async function seedTodayBookings(
     { room: '201', name: 'Hannah Weber', from: -1, to: 4, status: BookingStatus.CHECKED_IN },
   ];
 
+  /* Se borran las reservas de corridas anteriores antes de recrearlas.
+     Son relativas a "hoy", así que las de ayer ocupan otras noches y chocan
+     contra la restricción de exclusión: el upsert por referencia no alcanza
+     porque el conflicto es de fechas, no de clave. Sin esto, cada corrida
+     sembraba menos reservas que la anterior y el seed dejaba de ser repetible.
+     Sólo toca lo que sembró este archivo (`SEED*`). */
+  await prisma.booking.deleteMany({
+    where: { propertyId: ctx.propertyId, reference: { startsWith: 'SEED' } },
+  });
+
   let created = 0;
   for (const item of plan) {
     const unitId = ctx.units.get(item.room);
@@ -316,7 +328,13 @@ async function seedTodayBookings(
     const checkIn = dayFromToday(item.from);
     const checkOut = dayFromToday(item.to);
     const nights = item.to - item.from;
-    const total = nights * ctx.basePriceMinor;
+    /* Con impuesto, como cualquier reserva que cree el sistema. Sin esto el
+       reporte de ingresos mostraba ITBMS cero y parecía un bug del reporte
+       cuando en realidad eran datos sembrados de antes del motor de precios.
+       La base además exige que total = subtotal + impuesto + cargos. */
+    const subtotal = nights * ctx.basePriceMinor;
+    const tax = Math.round((subtotal * ctx.taxRatePct) / 100);
+    const total = subtotal + tax;
 
     const email = `${item.name.toLowerCase().replace(/[^a-z]/g, '')}@example.com`;
     const guest = await prisma.guest.upsert({
@@ -340,8 +358,8 @@ async function seedTodayBookings(
       guests: 1,
       status: item.status,
       source: BookingSource.STAFF,
-      subtotalMinor: total,
-      taxMinor: 0,
+      subtotalMinor: subtotal,
+      taxMinor: tax,
       feesMinor: 0,
       totalMinor: total,
       currency: ctx.currency,
@@ -350,7 +368,17 @@ async function seedTodayBookings(
     try {
       await prisma.booking.upsert({
         where: { reference: `SEED${item.room}` },
-        update: { checkIn, checkOut, status: item.status },
+        /* Se reajustan también los importes: si no, las reservas sembradas por
+           una corrida anterior conservan el desglose viejo y el reporte de
+           ingresos sigue mostrando impuesto cero. */
+        update: {
+          checkIn,
+          checkOut,
+          status: item.status,
+          subtotalMinor: subtotal,
+          taxMinor: tax,
+          totalMinor: total,
+        },
         create: { ...data, reference: `SEED${item.room}` },
       });
       created += 1;

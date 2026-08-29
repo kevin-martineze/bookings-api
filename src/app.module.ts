@@ -9,6 +9,7 @@ import { HousekeepingModule } from './housekeeping/housekeeping.module';
 import { OrgsModule } from './orgs/orgs.module';
 import { PricingModule } from './pricing/pricing.module';
 import { PrismaModule } from './prisma/prisma.module';
+import { ReportsModule } from './reports/reports.module';
 
 @Module({
   imports: [
@@ -20,6 +21,7 @@ import { PrismaModule } from './prisma/prisma.module';
     PricingModule,
     HousekeepingModule,
     BookingsModule,
+    ReportsModule,
   ],
   controllers: [AppController],
   providers: [AppService],

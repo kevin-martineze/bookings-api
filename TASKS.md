@@ -42,7 +42,7 @@ editando el texto) — yo voy tildando lo que completamos en cada sesión.
 - [x] CRUD de reservas y máquina de estados _(solo carga de staff; la reserva directa del huésped con depósito depende de pagos, P3)_
 - [x] Endpoints de camarería y estados de habitación _(estado de limpieza por unidad, tablero del día con ocupación derivada, bitácora de quién cambió qué, y el check-out ensucia la habitación solo → [`docs/flujo-camareria.md`](docs/flujo-camareria.md))_
 - [x] Endpoints de tarifas y temporadas _(CRUD de planes, cotización y calendario de tarifas)_
-- [ ] Endpoints de reportes y agregaciones
+- [x] Endpoints de reportes y agregaciones _(ingreso neto sin ITBMS, ocupación, ADR y RevPAR, con prorrateo por noche y desglose por tipo de unidad y origen → [`docs/flujo-reportes.md`](docs/flujo-reportes.md))_
 - [ ] Correos transaccionales: confirmación, recordatorio, cancelación
 - [ ] Notificaciones por WhatsApp
 - [x] Tests del motor de disponibilidad y de precios _(69 tests en total: solapamiento de fechas, transiciones de estado, el motor de precios completo — fin de semana, plan más específico, mínimos, cierres, cuadre del impuesto — y la derivación de estados de camarería)_
@@ -62,8 +62,8 @@ editando el texto) — yo voy tildando lo que completamos en cada sesión.
 
 - [ ] Conectar el sitio del huésped a la API real
 - [ ] Conectar el checkout a los pagos reales
-- [ ] Conectar el PMS completo a la API real _(hecho: hoy, calendario, reservas, tarifas y camarería. Falta reportes — depende de sus propios endpoints, todavía sin construir)_
-- [x] Pantallas de login y restricción por rol _(login real con sesión en cookie httpOnly que sobrevive recargas; el nav se restringe por rol real. Falta bloquear por rol a nivel de página, no sólo ocultar el enlace)_
+- [x] **Conectar el PMS completo a la API real** _(hoy, calendario, reservas, tarifas, camarería y reportes: ninguna pantalla del panel lee mocks)_
+- [x] Pantallas de login y restricción por rol _(login real con sesión en cookie httpOnly que sobrevive recargas, nav restringido por rol real, y bloqueo por rol **a nivel de página**: quien escriba la URL de una sección que no le toca ve un mensaje explícito)_
 - [ ] Estados de carga, error y vacío en todas las vistas
 - [ ] Revisar el responsive en un móvil real
 - [ ] SEO: metadata, sitemap y JSON-LD de Hotel y HotelRoom
@@ -102,7 +102,8 @@ editando el texto) — yo voy tildando lo que completamos en cada sesión.
 - [x] Bug real encontrado y corregido: la migración de camarería creaba `created_at` cuando el resto del schema deja `createdAt` sin mapear; el tablero devolvía 500. Migración deshecha y reaplicada corregida.
 - [ ] Selector de alojamiento en el panel _(hace falta cuando entren las casas; hoy toma el primero)_
 - [ ] Editor de tarifas en el panel _(hoy los planes se cargan por API o seed)_
-- [ ] **Bloqueo por rol a nivel de página** _(hoy la restricción es por endpoint y ocultando enlaces; camarería que escriba la URL de reportes entra)_
+- [x] **Bloqueo por rol a nivel de página** _(verificado: recepción en `/admin/reports` y camarería en `/admin` o `/admin/rates` ven "esta sección no es para tu rol". `ROLE_ACCESS` salió de `lib/mock/` a `lib/auth/`: dejó de ser dato de demostración el día que empezó a decidir accesos)_
+- [x] Bug real encontrado y corregido: el seed dejaba las reservas con ITBMS cero (eran de antes del motor de precios) y no las repisaba al recorrer, así que el reporte de ingresos mostraba impuesto cero y parecía un bug del reporte
 - [ ] Quitar el DemoSwitcher del panel _(sigue apareciendo la barra "Site / System / Proposal" sobre el tablero)_
 
 ## Preguntas abiertas para Julius

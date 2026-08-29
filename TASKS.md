@@ -49,7 +49,8 @@ editando el texto) — yo voy tildando lo que completamos en cada sesión.
 - [x] Endpoints de camarería y estados de habitación _(estado de limpieza por unidad, tablero del día con ocupación derivada, bitácora de quién cambió qué, y el check-out ensucia la habitación solo → [`docs/flujo-camareria.md`](docs/flujo-camareria.md))_
 - [x] Endpoints de tarifas y temporadas _(CRUD de planes, cotización y calendario de tarifas)_
 - [x] Endpoints de reportes y agregaciones _(ingreso neto sin ITBMS, ocupación, ADR y RevPAR, con prorrateo por noche y desglose por tipo de unidad y origen → [`docs/flujo-reportes.md`](docs/flujo-reportes.md))_
-- [ ] Correos transaccionales: confirmación, recordatorio, cancelación
+- [x] **Correos transaccionales** _(recuperación de contraseña, solicitud recibida, reserva confirmada y cancelada. Transporte por variable de entorno: `ethereal` en desarrollo deja una URL por mensaje; el día que exista el dominio es cambiar la variable. Falta el recordatorio previo a la llegada)_
+- [x] Idioma del huésped guardado en su ficha _(sin esto, quien reservaba en inglés recibía la confirmación en español)_
 - [ ] Notificaciones por WhatsApp
 - [x] Tests del motor de disponibilidad y de precios _(90 tests en total: solapamiento de fechas, transiciones de estado, el motor de precios completo — fin de semana, plan más específico, mínimos, cierres, cuadre del impuesto — la derivación de estados de camarería y las agregaciones de reportes)_
 - [ ] Desplegar el backend con sus variables de entorno _(**preparado, no ejecutado**: pasos, variables y verificación en [`docs/despliegue.md`](docs/despliegue.md); `GET /health` consulta la base y devuelve 503 si no responde. Falta crear las cuentas a nombre de Julius — P0)_

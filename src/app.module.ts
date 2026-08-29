@@ -9,6 +9,7 @@ import { AuthModule } from './auth/auth.module';
 import { BookingsModule } from './bookings/bookings.module';
 import { CatalogModule } from './catalog/catalog.module';
 import { HousekeepingModule } from './housekeeping/housekeeping.module';
+import { MailModule } from './mail/mail.module';
 import { OrgsModule } from './orgs/orgs.module';
 import { PricingModule } from './pricing/pricing.module';
 import { PrismaModule } from './prisma/prisma.module';
@@ -26,6 +27,7 @@ import { ReportsModule } from './reports/reports.module';
     // Tareas programadas: hoy sólo liberar retenciones vencidas.
     ScheduleModule.forRoot(),
     PrismaModule,
+    MailModule,
     AuthModule,
     OrgsModule,
     CatalogModule,

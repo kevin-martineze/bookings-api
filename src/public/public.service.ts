@@ -7,6 +7,8 @@ import {
 import { BookingSource, BookingStatus } from '@prisma/client';
 import { isOverlapConflict, PrismaService } from '../prisma/prisma.service';
 import { generateReference } from '../bookings/bookings.util';
+import { MailService } from '../mail/mail.service';
+import { bookingRequested } from '../mail/mail.templates';
 import { PricingService } from '../pricing/pricing.service';
 import type { PublicBookingDto } from './dto/public-booking.dto';
 
@@ -32,6 +34,7 @@ export class PublicService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly pricing: PricingService,
+    private readonly mail: MailService,
   ) {}
 
   /**
@@ -232,6 +235,28 @@ export class PublicService {
         },
       });
 
+      /* El correo sale en el idioma en que reservó — es el único momento en que
+         el sistema lo sabe. No se espera: la reserva ya existe, y hacer esperar
+         al huésped por el SMTP sólo convierte un correo lento en un formulario
+         lento. `send` no lanza. */
+      void this.mail.send({
+        to: guest.email,
+        ...bookingRequested(
+          {
+            guestName: guest.fullName,
+            reference: booking.reference,
+            propertyName: property.name,
+            unitTypeName: unitType.name,
+            checkIn: dto.checkIn,
+            checkOut: dto.checkOut,
+            nights: quote.nights.length,
+            totalMinor: quote.totalMinor,
+            currency: property.currency,
+          },
+          dto.locale ?? 'es',
+        ),
+      });
+
       /* Se devuelve lo justo para mostrar la confirmación. Ni el id interno ni
          la unidad física asignada: el huésped reservó un tipo de habitación, y
          cuál le toca puede cambiar antes de que llegue. */
@@ -376,6 +401,10 @@ export class PublicService {
         email,
         fullName: dto.guestFullName,
         phone: dto.guestPhone,
+        /* Se guarda al crear y no se actualiza después, igual que el resto de
+           la ficha: un huésped que vuelve conserva el idioma con el que trató
+           con el hotel la primera vez, que casi siempre es el correcto. */
+        locale: dto.locale ?? null,
       },
     });
   }

@@ -8,6 +8,11 @@ import { BookingSource, BookingStatus } from '@prisma/client';
 import { PropertiesService } from '../catalog/properties.service';
 import { UnitTypesService } from '../catalog/unit-types.service';
 import { HousekeepingService } from '../housekeeping/housekeeping.service';
+import { MailService } from '../mail/mail.service';
+import {
+  bookingCancelled,
+  bookingConfirmed,
+} from '../mail/mail.templates';
 import { PricingService } from '../pricing/pricing.service';
 import {
   isOverlapConflict,
@@ -28,6 +33,7 @@ export class BookingsService {
     private readonly unitTypes: UnitTypesService,
     private readonly pricing: PricingService,
     private readonly housekeeping: HousekeepingService,
+    private readonly mail: MailService,
   ) {}
 
   /**
@@ -312,9 +318,55 @@ export class BookingsService {
   async confirm(orgId: string, propertyId: string, bookingId: string) {
     const booking = await this.findOrThrow(orgId, propertyId, bookingId);
     assertTransition(booking.status, BookingStatus.CONFIRMED);
-    return this.prisma.booking.update({
+    const updated = await this.prisma.booking.update({
       where: { id: bookingId },
       data: { status: BookingStatus.CONFIRMED, holdExpiresAt: null },
+    });
+
+    void this.notifyGuest(booking, bookingConfirmed);
+    return updated;
+  }
+
+  /**
+   * Avisa al huésped de un cambio en su reserva.
+   *
+   * No se espera y no puede fallar hacia afuera: el cambio de estado ya está
+   * guardado, y que el correo no salga no puede convertir un check-in
+   * registrado en un error en la pantalla de recepción.
+   *
+   * Sale en el idioma del huésped, que se guardó cuando reservó desde el sitio.
+   * Cae a español cuando la reserva la cargó el personal y nadie preguntó — que
+   * es lo correcto para un hotel panameño.
+   */
+  private async notifyGuest(
+    booking: Awaited<ReturnType<BookingsService['findOrThrow']>>,
+    template: typeof bookingConfirmed,
+  ): Promise<void> {
+    const property = await this.prisma.property.findUnique({
+      where: { id: booking.propertyId },
+      select: { name: true },
+    });
+
+    const nights = Math.round(
+      (booking.checkOut.getTime() - booking.checkIn.getTime()) / 86400000,
+    );
+
+    await this.mail.send({
+      to: booking.guest.email,
+      ...template(
+        {
+          guestName: booking.guest.fullName,
+          reference: booking.reference,
+          propertyName: property?.name ?? '',
+          unitTypeName: booking.unitType.name,
+          checkIn: booking.checkIn.toISOString().slice(0, 10),
+          checkOut: booking.checkOut.toISOString().slice(0, 10),
+          nights,
+          totalMinor: booking.totalMinor,
+          currency: booking.currency,
+        },
+        booking.guest.locale === 'en' ? 'en' : 'es',
+      ),
     });
   }
 
@@ -362,10 +414,13 @@ export class BookingsService {
   async cancel(orgId: string, propertyId: string, bookingId: string) {
     const booking = await this.findOrThrow(orgId, propertyId, bookingId);
     assertTransition(booking.status, BookingStatus.CANCELLED);
-    return this.prisma.booking.update({
+    const updated = await this.prisma.booking.update({
       where: { id: bookingId },
       data: { status: BookingStatus.CANCELLED, cancelledAt: new Date() },
     });
+
+    void this.notifyGuest(booking, bookingCancelled);
+    return updated;
   }
 
   private async transition(

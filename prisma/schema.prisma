@@ -414,6 +414,16 @@ model Guest {
   /// Notas internas del personal. Nunca visibles para el huésped.
   notes    String?
 
+  /// Idioma en que este huésped trata con el hotel: "es" o "en".
+  ///
+  /// Existe porque sin él los correos que dispara el personal —confirmación,
+  /// cancelación— salían todos en español, incluso a alguien que había
+  /// reservado en inglés. El idioma sólo se conoce en el momento de la reserva
+  /// desde el sitio; después esa información ya no está en ningún lado.
+  ///
+  /// Null cuando la reserva la cargó el personal y nadie preguntó.
+  locale String?
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 

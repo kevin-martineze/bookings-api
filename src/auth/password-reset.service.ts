@@ -1,7 +1,9 @@
-import { BadRequestException, Injectable, Logger } from '@nestjs/common';
+import { BadRequestException, Injectable } from '@nestjs/common';
 import { TokenPurpose } from '@prisma/client';
 import * as argon2 from 'argon2';
 import { createHash, randomBytes } from 'node:crypto';
+import { MailService } from '../mail/mail.service';
+import { passwordReset } from '../mail/mail.templates';
 import { PrismaService } from '../prisma/prisma.service';
 
 /**
@@ -20,9 +22,10 @@ const TOKEN_TTL_MINUTES = 60;
 
 @Injectable()
 export class PasswordResetService {
-  private readonly logger = new Logger(PasswordResetService.name);
-
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly mail: MailService,
+  ) {}
 
   /**
    * Pide un restablecimiento.
@@ -62,14 +65,16 @@ export class PasswordResetService {
       },
     });
 
-    /* ⚠️ Todavía no hay proveedor de correo. Mientras tanto el enlace sale por
-       el log del servidor, que en desarrollo alcanza y en producción es
-       inaceptable — por eso el envío queda anotado como pendiente en TASKS.md.
-       El token NO se devuelve en la respuesta: eso convertiría el endpoint en
-       una forma de tomar cualquier cuenta conociendo el correo. */
-    this.logger.warn(
-      `[SIN CORREO CONFIGURADO] Restablecimiento para ${email}: token=${token} (vence ${expiresAt.toISOString()})`,
-    );
+    /* El token viaja SÓLO por correo, nunca en la respuesta: devolverlo
+       convertiría el endpoint en una forma de tomar cualquier cuenta conociendo
+       el correo. */
+    const link = `${process.env.PANEL_URL ?? 'http://localhost:3001'}/es/admin?reset=${token}`;
+    const mail = passwordReset(link);
+
+    /* No se espera el envío. El pedido ya está registrado y el token ya existe;
+       hacer esperar al usuario por el SMTP sólo convierte un correo lento en una
+       pantalla lenta. `MailService.send` no lanza. */
+    void this.mail.send({ to: email, ...mail });
 
     return { sent: true };
   }

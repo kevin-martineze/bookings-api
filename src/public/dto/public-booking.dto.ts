@@ -1,6 +1,7 @@
 import { Type } from 'class-transformer';
 import {
   IsEmail,
+  IsIn,
   IsInt,
   IsOptional,
   IsString,
@@ -73,4 +74,17 @@ export class PublicBookingDto {
   @IsString()
   @MaxLength(500)
   guestNotes?: string;
+
+  /**
+   * Idioma en que el huésped está reservando.
+   *
+   * Lo manda el sitio, que es el único que lo sabe. Sirve para que el correo de
+   * "solicitud recibida" salga en el idioma correcto.
+   *
+   * Se guarda en la ficha del huésped, así que los correos posteriores
+   * —confirmación, cancelación— también salen en su idioma.
+   */
+  @IsOptional()
+  @IsIn(['es', 'en'])
+  locale?: 'es' | 'en';
 }

@@ -3,7 +3,7 @@
 Basado en tu lista original (`daughters-of-sun-tareas.txt`). Marcá los `[ ]`
 directo en el archivo (clic en la vista previa de Markdown de VS Code, o
 editando el texto) — yo voy tildando lo que completamos en cada sesión.
-Última actualización: 2026-08-28.
+Última actualización: 2026-08-29.
 
 ## P0 — bloqueante / urgente
 
@@ -48,7 +48,7 @@ editando el texto) — yo voy tildando lo que completamos en cada sesión.
 - [x] Endpoints de reportes y agregaciones _(ingreso neto sin ITBMS, ocupación, ADR y RevPAR, con prorrateo por noche y desglose por tipo de unidad y origen → [`docs/flujo-reportes.md`](docs/flujo-reportes.md))_
 - [ ] Correos transaccionales: confirmación, recordatorio, cancelación
 - [ ] Notificaciones por WhatsApp
-- [x] Tests del motor de disponibilidad y de precios _(69 tests en total: solapamiento de fechas, transiciones de estado, el motor de precios completo — fin de semana, plan más específico, mínimos, cierres, cuadre del impuesto — y la derivación de estados de camarería)_
+- [x] Tests del motor de disponibilidad y de precios _(90 tests en total: solapamiento de fechas, transiciones de estado, el motor de precios completo — fin de semana, plan más específico, mínimos, cierres, cuadre del impuesto — la derivación de estados de camarería y las agregaciones de reportes)_
 - [ ] Desplegar el backend con sus variables de entorno _(**preparado, no ejecutado**: pasos, variables y verificación en [`docs/despliegue.md`](docs/despliegue.md); `GET /health` consulta la base y devuelve 503 si no responde. Falta crear las cuentas a nombre de Julius — P0)_
 - [ ] Backups automáticos y monitoreo de errores _(documentado qué hace falta y por qué; sin proveedor todavía. Sentry sin instalar)_
 
@@ -111,7 +111,11 @@ editando el texto) — yo voy tildando lo que completamos en cada sesión.
 - [x] Bug real encontrado y corregido: la barra lateral seguía avisando que camarería, tarifas y reportes "usan datos de demostración" cuando ya eran todos reales
 - [x] **Bloqueo por rol a nivel de página** _(verificado: recepción en `/admin/reports` y camarería en `/admin` o `/admin/rates` ven "esta sección no es para tu rol". `ROLE_ACCESS` salió de `lib/mock/` a `lib/auth/`: dejó de ser dato de demostración el día que empezó a decidir accesos)_
 - [x] Bug real encontrado y corregido: el seed dejaba las reservas con ITBMS cero (eran de antes del motor de precios) y no las repisaba al recorrer, así que el reporte de ingresos mostraba impuesto cero y parecía un bug del reporte
-- [ ] Quitar el DemoSwitcher del panel _(sigue apareciendo la barra "Site / System / Proposal" sobre el tablero)_
+- [x] Quitar el DemoSwitcher del panel _(sobre un panel que ya escribe en la base era una barra flotante que invitaba a irse a la propuesta comercial en medio de un check-in. Sigue en el sitio del huésped y en `/proposal`)_
+- [x] **Reserva pública sin pagos**: el huésped consulta, cotiza y solicita desde el sitio; el hotel acepta desde el panel → [`docs/flujo-reserva-publica.md`](docs/flujo-reserva-publica.md)
+- [x] Bug real encontrado y corregido: el libro de reservas dejaba filtrar por "Por confirmar" y no daba ninguna forma de confirmar — la hoja de detalle vivía dentro del calendario. Ahora es un componente compartido y las filas se abren con clic o con Enter
+- [x] Bug real encontrado y corregido: la página `/book` anidaba un `<main>` dentro del `<main>` del layout (HTML inválido; dos contenidos principales para un lector de pantalla)
+- [x] Bug real encontrado y corregido: el pie del sitio decía "no reservas reales" después de que `/book` empezara a crear reservas de verdad
 
 ## Preguntas abiertas para Julius
 

@@ -1,0 +1,109 @@
+# Daughters of Sun — checklist
+
+Basado en tu lista original (`daughters-of-sun-tareas.txt`). Marcá los `[ ]`
+directo en el archivo (clic en la vista previa de Markdown de VS Code, o
+editando el texto) — yo voy tildando lo que completamos en cada sesión.
+Última actualización: 2026-08-28.
+
+## P0 — bloqueante / urgente
+
+- [ ] **BLOQUEANTE** · Julius: abrir cuenta comercial en Banco General (Yappy)
+- [ ] **BLOQUEANTE** · Julius: solicitud de pasarela de tarjeta en Banistmo (Wompi)
+- [ ] Cobrar primer pago de $1,040
+- [ ] Confirmar con Julius: Daughters of Sun vs Don Julius (arquitectura de marca)
+- [ ] Confirmar con Julius: cuántas casas entran en el alcance
+- [ ] Preguntar a Julius qué significa "set up a little different"
+- [ ] Pedir a Julius la lista de habitaciones: tipos, cantidad, capacidad
+- [ ] Pedir a Julius las tarifas: alta, baja, fin de semana
+- [ ] Decidir y registrar el dominio
+- [ ] Crear cuentas a nombre de Julius: hosting, base de datos, correo
+- [ ] Revertir o terminar la sección "Read this first" de /proposal
+- [ ] Decidir si el repo pms-frontend pasa a privado
+
+## P1 — contenido y marca
+
+- [ ] Definir paleta y tipografía finales con el nombre real
+- [ ] Logo o tratamiento tipográfico de Daughters of Sun
+- [ ] Recibir de Julius las fotos posteriores al repintado
+- [ ] Seleccionar, recortar y optimizar la fotografía
+- [ ] Escribir el alt text de todas las fotos
+- [ ] Cargar el contenido real de las unidades: nombres, descripciones, capacidades
+- [ ] Traducir el contenido de las unidades al inglés
+- [ ] Redactar políticas, FAQ, cómo llegar y accesibilidad reales
+
+## P2 — backend
+
+- [x] Esquema de base de datos y migraciones
+- [ ] Seeds con el inventario real del hotel _(el seed de desarrollo ya crea inventario y reservas relativas a hoy; falta el inventario real de Julius — depende de un ítem P0)_
+- [x] Auth: login, sesiones _(recuperación de contraseña sigue pendiente — el modelo `VerificationToken` existe pero no tiene endpoint)_
+- [x] Roles y permisos: propietario, gerencia, recepción, camarería
+- [x] Motor de disponibilidad en el servidor
+- [x] Motor de precios: temporadas, fin de semana y planes tarifarios _(incluye ITBMS 10%, estadía mínima por fecha y cierres de venta → [`docs/flujo-precios.md`](docs/flujo-precios.md))_
+- [x] CRUD de reservas y máquina de estados _(solo carga de staff; la reserva directa del huésped con depósito depende de pagos, P3)_
+- [ ] Endpoints de camarería y estados de habitación
+- [x] Endpoints de tarifas y temporadas _(CRUD de planes, cotización y calendario de tarifas)_
+- [ ] Endpoints de reportes y agregaciones
+- [ ] Correos transaccionales: confirmación, recordatorio, cancelación
+- [ ] Notificaciones por WhatsApp
+- [x] Tests del motor de disponibilidad y de precios _(46 tests en total: solapamiento de fechas, transiciones de estado, y el motor de precios completo — fin de semana, plan más específico, mínimos, cierres, cuadre del impuesto)_
+- [ ] Desplegar el backend con sus variables de entorno
+- [ ] Backups automáticos y monitoreo de errores
+
+## P3 — pagos
+
+- [ ] Integrar el Botón de Pago Yappy (SDK de Node)
+- [ ] Integrar la pasarela de tarjeta (Wompi)
+- [ ] Flujo de depósito del 30% y saldo al llegar
+- [ ] Webhooks de confirmación de pago
+- [ ] Manejo de fallos, reintentos y reembolsos
+- [ ] Pruebas de pago de punta a punta con montos reales pequeños
+
+## P4 — integración frontend
+
+- [ ] Conectar el sitio del huésped a la API real
+- [ ] Conectar el checkout a los pagos reales
+- [ ] Conectar el PMS completo a la API real _(hecho: hoy, calendario y reservas. Faltan: camarería, tarifas y reportes — dependen de sus propios endpoints, todavía sin construir)_
+- [x] Pantallas de login y restricción por rol _(login real con sesión en cookie httpOnly que sobrevive recargas; el nav se restringe por rol real. Falta bloquear por rol a nivel de página, no sólo ocultar el enlace)_
+- [ ] Estados de carga, error y vacío en todas las vistas
+- [ ] Revisar el responsive en un móvil real
+- [ ] SEO: metadata, sitemap y JSON-LD de Hotel y HotelRoom
+- [ ] Rendimiento: LCP bajo 2.5s en portada y ficha de unidad
+- [ ] Auditoría de accesibilidad: teclado, foco visible, axe
+- [ ] Quitar todos los datos de demostración y el DemoSwitcher
+
+## P5 — lanzamiento
+
+- [ ] Cargar inventario y tarifas reales en producción
+- [ ] Escribir el manual corto para el personal
+- [ ] Entrenar al personal (1 de octubre)
+- [ ] Reservas de prueba de punta a punta
+- [ ] Publicar el sitio en el dominio real
+- [ ] Crear el perfil de Google Business del hotel
+- [ ] Verificar la indexación en Google Search Console
+- [ ] Acompañar las primeras reservas reales
+
+## Extra: trabajo real hecho hoy que no estaba en la lista original
+
+- [x] Endpoints de catálogo (Property/UnitType/Unit) — base necesaria antes de disponibilidad/reservas, no estaba nombrada explícitamente en P2
+- [x] Bug real encontrado y corregido: `OrgRolesGuard` dejaba pasar a cualquier usuario autenticado de cualquier organización en rutas sin `@Roles`
+- [x] Bug real encontrado y corregido: detección de errores de Prisma comparaba contra el código equivocado, dos veces (`isUniqueViolation` primero, `isOverlapConflict` después — el código real resultó ser `P2039`, ni siquiera el `P2004` que documenta Prisma). Verificado con una carrera real de 3 requests en paralelo: 2×201 + 1×409 limpio, cero 500.
+- [x] Fix de layout: scroll del panel admin quedaba en todo el documento en vez de contenerse en `<main>`
+- [x] Swagger en `/docs` — estaba como dependencia desde el inicio pero nunca configurado
+- [x] Bug real encontrado y corregido: el proxy de i18n redirigía `/api/session` a `/en/api/session` y rompía el login entero
+- [x] Bug real encontrado y corregido: el panel elegía alojamiento alfabéticamente, así que crear una property nueva lo hacía mostrar otra en silencio. Ahora ordena por antigüedad y el header dice cuál está mostrando
+- [x] Documentar el flujo de sesión y lectura de datos → [`docs/flujo-sesion-y-panel.md`](docs/flujo-sesion-y-panel.md)
+- [x] **El panel escribe**: check-in, check-out, cancelar y cargar reservas desde la interfaz, con disponibilidad en vivo → [`docs/flujo-escritura-reservas.md`](docs/flujo-escritura-reservas.md)
+- [x] Bug real encontrado y corregido: los botones de check-in/check-out eran falsos — mostraban un toast de éxito sin llamar a nada
+- [x] Bug real encontrado y corregido: el seed usaba "hoy" en UTC y el panel la fecha local, así que en Panamá (UTC-5) el dashboard mostraba cero llegadas después de las 7pm
+- [x] Pantalla de Tarifas conectada a datos reales _(mapa de 4 semanas + temporadas; **falta poder editarlas desde ahí**)_
+- [x] Refactor: se eliminó `nightsBetween` duplicada — el motor de precios cuenta las noches, y dos funciones contando lo mismo terminan discrepando en una factura
+- [x] Commitear el trabajo de hoy en ambos repos _(9 commits en bookings-api sobre `feat/api-real-motor-de-precios`, 4 en pms-frontend sobre `feat/panel-sobre-api-real`. **Falta mergear a `main` y publicar** — nada está en GitHub todavía)_
+- [ ] Selector de alojamiento en el panel _(hace falta cuando entren las casas; hoy toma el primero)_
+- [ ] Editor de tarifas en el panel _(hoy los planes se cargan por API o seed)_
+
+## Preguntas abiertas para Julius
+
+- **¿El domingo cuenta como fin de semana para la tarifa?** Implementado como
+  viernes y sábado. Cambiarlo es una línea, pero es su decisión de negocio.
+- **¿Las tarifas que dé son con ITBMS incluido o sin incluir?** El sistema asume
+  SIN incluir y suma el 10% al cotizar.

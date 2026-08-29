@@ -62,6 +62,17 @@ export class BookingsController {
     return this.bookings.create(orgId, propertyId, dto);
   }
 
+  /** Acepta una reserva que entró por el sitio del huésped. */
+  @Post(':bookingId/confirm')
+  @Roles(...STAFF_ROLES)
+  confirm(
+    @Param('orgId') orgId: string,
+    @Param('propertyId') propertyId: string,
+    @Param('bookingId') bookingId: string,
+  ) {
+    return this.bookings.confirm(orgId, propertyId, bookingId);
+  }
+
   @Post(':bookingId/check-in')
   @Roles(...STAFF_ROLES)
   checkIn(

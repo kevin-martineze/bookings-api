@@ -39,7 +39,10 @@ editando el texto) — yo voy tildando lo que completamos en cada sesión.
 - [x] Roles y permisos: propietario, gerencia, recepción, camarería
 - [x] Motor de disponibilidad en el servidor
 - [x] Motor de precios: temporadas, fin de semana y planes tarifarios _(incluye ITBMS 10%, estadía mínima por fecha y cierres de venta → [`docs/flujo-precios.md`](docs/flujo-precios.md))_
-- [x] CRUD de reservas y máquina de estados _(solo carga de staff; la reserva directa del huésped con depósito depende de pagos, P3)_
+- [x] CRUD de reservas y máquina de estados _(carga de staff y **reserva directa del huésped**; el depósito depende de pagos, P3)_
+- [x] **API pública para el sitio del huésped** _(el único módulo sin autenticación: devuelve tipos y no unidades, recalcula el precio en el servidor, limita por IP y no deja sobrescribir la ficha de un huésped existente)_
+- [ ] Job que libere las retenciones vencidas _(hoy se barren de forma perezosa al consultar disponibilidad; sin nadie mirando, una retención puede pasar de 48 h)_
+- [ ] Aviso al hotel cuando entra una solicitud _(hoy sólo se ve abriendo el panel)_
 - [x] Endpoints de camarería y estados de habitación _(estado de limpieza por unidad, tablero del día con ocupación derivada, bitácora de quién cambió qué, y el check-out ensucia la habitación solo → [`docs/flujo-camareria.md`](docs/flujo-camareria.md))_
 - [x] Endpoints de tarifas y temporadas _(CRUD de planes, cotización y calendario de tarifas)_
 - [x] Endpoints de reportes y agregaciones _(ingreso neto sin ITBMS, ocupación, ADR y RevPAR, con prorrateo por noche y desglose por tipo de unidad y origen → [`docs/flujo-reportes.md`](docs/flujo-reportes.md))_
@@ -60,7 +63,7 @@ editando el texto) — yo voy tildando lo que completamos en cada sesión.
 
 ## P4 — integración frontend
 
-- [ ] Conectar el sitio del huésped a la API real
+- [x] **Conectar el sitio del huésped a la API real** _(el huésped consulta disponibilidad, ve el precio real con ITBMS y envía una solicitud que entra al sistema como `PENDING` con retención de 48 h; recepción la acepta desde el panel → [`docs/flujo-reserva-publica.md`](docs/flujo-reserva-publica.md). Las fotos y textos del sitio siguen siendo de demostración — depende de Julius)_
 - [ ] Conectar el checkout a los pagos reales
 - [x] **Conectar el PMS completo a la API real** _(hoy, calendario, reservas, tarifas, camarería y reportes: ninguna pantalla del panel lee mocks)_
 - [x] Pantallas de login y restricción por rol _(login real con sesión en cookie httpOnly que sobrevive recargas, nav restringido por rol real, y bloqueo por rol **a nivel de página**: quien escriba la URL de una sección que no le toca ve un mensaje explícito)_

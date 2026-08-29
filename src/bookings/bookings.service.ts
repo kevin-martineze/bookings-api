@@ -183,6 +183,26 @@ export class BookingsService {
     );
   }
 
+  /**
+   * Confirma una reserva pendiente.
+   *
+   * Es el paso que faltaba desde que el sitio del huésped puede reservar: una
+   * reserva directa entra en `PENDING` con una retención, y sin esto quedaría
+   * atascada — el personal podía cancelarla pero no aceptarla.
+   *
+   * Al confirmar se limpia `holdExpiresAt`: la retención existe para que una
+   * reserva sin confirmar no bloquee el inventario para siempre, y una vez
+   * confirmada ya no vence.
+   */
+  async confirm(orgId: string, propertyId: string, bookingId: string) {
+    const booking = await this.findOrThrow(orgId, propertyId, bookingId);
+    assertTransition(booking.status, BookingStatus.CONFIRMED);
+    return this.prisma.booking.update({
+      where: { id: bookingId },
+      data: { status: BookingStatus.CONFIRMED, holdExpiresAt: null },
+    });
+  }
+
   async checkIn(orgId: string, propertyId: string, bookingId: string) {
     return this.transition(
       orgId,

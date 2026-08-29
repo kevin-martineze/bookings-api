@@ -1,10 +1,17 @@
 import { ValidationPipe } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
+import type { NestExpressApplication } from '@nestjs/platform-express';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { AppModule } from './app.module';
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule);
+  const app = await NestFactory.create<NestExpressApplication>(AppModule);
+
+  /* Detrás del proxy del hosting, la IP de origen llega en `X-Forwarded-For` y
+     la del socket es siempre la del proxy. Sin esto, el límite por IP de los
+     endpoints públicos vería a todo internet como un solo visitante: el
+     primero en reservar consumiría la cuota de todos los demás. */
+  app.set('trust proxy', 1);
 
   app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }));
 

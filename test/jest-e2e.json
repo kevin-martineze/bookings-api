@@ -5,5 +5,10 @@
   "testRegex": ".e2e-spec.ts$",
   "transform": {
     "^.+\\.(t|j)s$": "ts-jest"
-  }
+  },
+  "//": "@nestjs/schedule 12 se publica sólo como ESM, y Jest corre en CommonJS. Por defecto no transforma nada de node_modules; esta excepción le deja transformar ese paquete y ninguno más. Sin esto, cualquier prueba que levante el AppModule falla al importarlo.",
+  "transformIgnorePatterns": [
+    "node_modules/(?!(.*(@nestjs[+/\\\\]schedule)))"
+  ],
+  "testTimeout": 60000
 }

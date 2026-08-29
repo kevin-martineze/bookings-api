@@ -54,6 +54,7 @@ editando el texto) — yo voy tildando lo que completamos en cada sesión.
 - [ ] Notificaciones por WhatsApp
 - [x] Tests del motor de disponibilidad y de precios _(90 tests en total: solapamiento de fechas, transiciones de estado, el motor de precios completo — fin de semana, plan más específico, mínimos, cierres, cuadre del impuesto — la derivación de estados de camarería y las agregaciones de reportes)_
 - [ ] Desplegar el backend con sus variables de entorno _(**preparado, no ejecutado**: pasos, variables y verificación en [`docs/despliegue.md`](docs/despliegue.md); `GET /health` consulta la base y devuelve 503 si no responde. Falta crear las cuentas a nombre de Julius — P0)_
+- [x] **Pruebas de aislamiento entre inquilinos, alojamientos y roles** _(23 pruebas de punta a punta contra la base real: organización ajena, alojamiento ajeno dentro del mismo hotel, cada rol contra lo que no le toca, y que la API pública no filtre unidades ni ocupación)_
 - [ ] Backups automáticos y monitoreo de errores _(documentado qué hace falta y por qué; sin proveedor todavía. Sentry sin instalar)_
 
 ## P3 — pagos

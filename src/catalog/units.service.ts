@@ -82,6 +82,27 @@ export class UnitsService {
   }
 
   /**
+   * Borra una habitación, y sólo si nunca se vendió.
+   *
+   * Con reservas encima se niega y ofrece la salida correcta: marcarla
+   * `active: false`, que la saca de la venta sin tocar el historial. Es la
+   * diferencia entre "esta habitación ya no se alquila" y "esta habitación
+   * nunca existió", y confundirlas borra las facturas de quien durmió ahí.
+   */
+  async remove(orgId: string, propertyId: string, unitId: string) {
+    await this.findOrThrow(orgId, propertyId, unitId);
+
+    const bookings = await this.prisma.booking.count({ where: { unitId } });
+    if (bookings > 0) {
+      throw new ConflictException(
+        'Esta habitación tiene reservas y no se puede borrar. Marcala como fuera de servicio para dejar de venderla.',
+      );
+    }
+
+    await this.prisma.unit.delete({ where: { id: unitId } });
+  }
+
+  /**
    * El schema no garantiza esto a nivel de base para `Unit` (solo lo hace para
    * `Booking`, vía el trigger `assert_booking_consistency`) — sin esta
    * validación se podría crear una unidad que apunta a un tipo de OTRA

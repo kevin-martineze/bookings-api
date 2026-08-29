@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { APP_GUARD } from '@nestjs/core';
+import { ScheduleModule } from '@nestjs/schedule';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
@@ -22,6 +23,8 @@ import { ReportsModule } from './reports/reports.module';
        propio límite con `@Throttle`. Un techo global agresivo estorbaría al
        personal, que trabaja detrás de una sola IP en el hotel. */
     ThrottlerModule.forRoot([{ ttl: 60_000, limit: 300 }]),
+    // Tareas programadas: hoy sólo liberar retenciones vencidas.
+    ScheduleModule.forRoot(),
     PrismaModule,
     AuthModule,
     OrgsModule,

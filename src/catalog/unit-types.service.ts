@@ -31,6 +31,41 @@ export class UnitTypesService {
     return unitType;
   }
 
+  /**
+   * Borra un tipo de unidad, y sólo si de verdad se puede.
+   *
+   * Se niega si todavía tiene habitaciones o si alguna vez se le vendió una
+   * reserva. Borrarlo con reservas encima se llevaría por delante el historial
+   * —Prisma tiene `onDelete: Restrict` en `Unit`, pero las reservas cuelgan del
+   * tipo también— y un hotel necesita poder decir a quién le cobró qué.
+   *
+   * El caso real es otro: cargar "Suite Doble" con un error de dedo y querer
+   * empezar de nuevo antes de vender nada. Para eso sirve. Para retirar un tipo
+   * que ya se usó, lo correcto es dejarlo sin habitaciones activas.
+   */
+  async remove(orgId: string, propertyId: string, unitTypeId: string) {
+    await this.findOrThrow(orgId, propertyId, unitTypeId);
+
+    const [units, bookings] = await Promise.all([
+      this.prisma.unit.count({ where: { unitTypeId } }),
+      this.prisma.booking.count({ where: { unitTypeId } }),
+    ]);
+
+    if (bookings > 0) {
+      throw new ConflictException(
+        'Este tipo tiene reservas asociadas y no se puede borrar. Quitale las habitaciones para dejar de venderlo.',
+      );
+    }
+    if (units > 0) {
+      throw new ConflictException(
+        `Todavía tiene ${units} habitación(es). Borralas o movelas de tipo primero.`,
+      );
+    }
+
+    // Los planes tarifarios sí se van con él: sin tipo no describen nada.
+    await this.prisma.unitType.delete({ where: { id: unitTypeId } });
+  }
+
   async create(orgId: string, propertyId: string, dto: CreateUnitTypeDto) {
     await this.properties.findOrThrow(orgId, propertyId);
     try {

@@ -16,6 +16,7 @@ import {
 } from '../prisma/prisma.service';
 import { assertTransition, generateReference } from './bookings.util';
 import type { CreateBookingDto } from './dto/create-booking.dto';
+import type { UpdateBookingDto } from './dto/update-booking.dto';
 
 const MAX_REFERENCE_ATTEMPTS = 3;
 
@@ -184,6 +185,120 @@ export class BookingsService {
   }
 
   /**
+   * Modifica una reserva ya tomada: fechas, huéspedes, habitación o notas.
+   *
+   * Hasta ahora sólo existían las transiciones de estado, así que "el huésped
+   * llama y extiende una noche" —que pasa todos los días— obligaba a cancelar y
+   * volver a cargar. Eso pierde la referencia que el huésped ya tiene y borra
+   * el precio con el que se le vendió.
+   *
+   * Tres reglas:
+   *
+   *  - **Recotiza siempre que cambien las fechas.** El precio nuevo sale del
+   *    motor, no de lo que había: extender una noche a un viernes cuesta lo que
+   *    cuesta ese viernes.
+   *  - **No toca reservas cerradas.** Una estadía que ya terminó o se canceló
+   *    es un hecho histórico.
+   *  - **La restricción de exclusión sigue mandando.** Si las fechas nuevas
+   *    chocan con otra reserva de esa habitación, la base rechaza el UPDATE
+   *    igual que rechazaría un INSERT.
+   */
+  async update(
+    orgId: string,
+    propertyId: string,
+    bookingId: string,
+    dto: UpdateBookingDto,
+  ) {
+    const booking = await this.findOrThrow(orgId, propertyId, bookingId);
+
+    const CLOSED: BookingStatus[] = [
+      BookingStatus.CHECKED_OUT,
+      BookingStatus.CANCELLED,
+      BookingStatus.NO_SHOW,
+    ];
+    if (CLOSED.includes(booking.status)) {
+      throw new BadRequestException(
+        'Esta reserva ya está cerrada y no se puede modificar.',
+      );
+    }
+
+    const checkInStr = dto.checkIn ?? toDateKey(booking.checkIn);
+    const checkOutStr = dto.checkOut ?? toDateKey(booking.checkOut);
+    const datesChanged =
+      checkInStr !== toDateKey(booking.checkIn) ||
+      checkOutStr !== toDateKey(booking.checkOut);
+
+    const { checkIn, checkOut } = this.parseRange(checkInStr, checkOutStr);
+
+    /* Mover de habitación puede cambiar el tipo, y el tipo es lo que fija el
+       precio y el máximo de huéspedes. */
+    let unitId = booking.unitId;
+    let unitTypeId = booking.unitTypeId;
+    if (dto.unitId && dto.unitId !== booking.unitId) {
+      const unit = await this.prisma.unit.findFirst({
+        where: { id: dto.unitId, propertyId, orgId },
+      });
+      if (!unit) throw new BadRequestException('Esa habitación no existe acá.');
+      if (!unit.active) {
+        throw new BadRequestException('Esa habitación está fuera de servicio.');
+      }
+      unitId = unit.id;
+      unitTypeId = unit.unitTypeId;
+    }
+
+    const unitType = await this.unitTypes.findOrThrow(
+      orgId,
+      propertyId,
+      unitTypeId,
+    );
+
+    const guests = dto.guests ?? booking.guests;
+    if (guests > unitType.maxGuests) {
+      throw new BadRequestException(
+        `Esta unidad admite hasta ${unitType.maxGuests} huéspedes.`,
+      );
+    }
+
+    /* Si cambian las fechas o el tipo, se recotiza. Si sólo se corrigió una
+       nota o la cantidad de huéspedes dentro del mismo tipo, el precio
+       acordado se respeta: recotizar ahí le cambiaría el total a alguien por
+       haber escrito una observación. */
+    const needsRequote = datesChanged || unitTypeId !== booking.unitTypeId;
+    const quote = needsRequote
+      ? await this.pricing.quote(orgId, propertyId, unitTypeId, checkIn, checkOut)
+      : null;
+
+    try {
+      return await this.prisma.booking.update({
+        where: { id: bookingId },
+        data: {
+          checkIn,
+          checkOut,
+          guests,
+          unitId,
+          unitTypeId,
+          ...(dto.guestNotes !== undefined ? { guestNotes: dto.guestNotes } : {}),
+          ...(quote
+            ? {
+                subtotalMinor: quote.subtotalMinor,
+                taxMinor: quote.taxMinor,
+                totalMinor: quote.totalMinor,
+              }
+            : {}),
+        },
+        include: BookingsService.DETAIL_INCLUDE,
+      });
+    } catch (error) {
+      if (isOverlapConflict(error)) {
+        throw new ConflictException(
+          'Esas fechas chocan con otra reserva de esa habitación.',
+        );
+      }
+      throw error;
+    }
+  }
+
+  /**
    * Confirma una reserva pendiente.
    *
    * Es el paso que faltaba desde que el sitio del huésped puede reservar: una
@@ -320,4 +435,15 @@ export class BookingsService {
       },
     });
   }
+}
+
+/**
+ * Fecha calendario de un `@db.Date`, en UTC.
+ *
+ * Comparar `Date` contra `Date` para saber si el usuario cambió la fecha da
+ * falsos positivos por milisegundos y husos; comparar las cadenas del día es lo
+ * único que responde la pregunta que importa.
+ */
+function toDateKey(date: Date): string {
+  return date.toISOString().slice(0, 10);
 }

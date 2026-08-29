@@ -3,6 +3,7 @@ import {
   Controller,
   Get,
   Param,
+  Patch,
   Post,
   Query,
   UseGuards,
@@ -19,6 +20,7 @@ import { OrgRolesGuard } from '../auth/guards/org-roles.guard';
 import { BookingsService } from './bookings.service';
 import { CreateBookingDto } from './dto/create-booking.dto';
 import { ListBookingsQueryDto } from './dto/list-bookings-query.dto';
+import { UpdateBookingDto } from './dto/update-booking.dto';
 
 /** Roles que pueden crear reservas y mover su estado. Camarería no. */
 const STAFF_ROLES = [
@@ -60,6 +62,24 @@ export class BookingsController {
     @Body() dto: CreateBookingDto,
   ) {
     return this.bookings.create(orgId, propertyId, dto);
+  }
+
+  /**
+   * Cambiar fechas, huéspedes, habitación o notas.
+   *
+   * `PATCH` y no un `POST` de transición porque no es un cambio de estado: la
+   * reserva sigue siendo la misma, con su referencia, y lo que cambia es su
+   * contenido.
+   */
+  @Patch(':bookingId')
+  @Roles(...STAFF_ROLES)
+  update(
+    @Param('orgId') orgId: string,
+    @Param('propertyId') propertyId: string,
+    @Param('bookingId') bookingId: string,
+    @Body() dto: UpdateBookingDto,
+  ) {
+    return this.bookings.update(orgId, propertyId, bookingId, dto);
   }
 
   /** Acepta una reserva que entró por el sitio del huésped. */

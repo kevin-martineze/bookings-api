@@ -1,7 +1,10 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
+  HttpCode,
+  HttpStatus,
   Param,
   Patch,
   Post,
@@ -59,5 +62,17 @@ export class UnitTypesController {
     @Body() dto: UpdateUnitTypeDto,
   ) {
     return this.unitTypes.update(orgId, propertyId, unitTypeId, dto);
+  }
+
+  /** Sólo si no tiene habitaciones ni reservas. */
+  @Delete(':unitTypeId')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @Roles(MemberRole.OWNER, MemberRole.MANAGER)
+  remove(
+    @Param('orgId') orgId: string,
+    @Param('propertyId') propertyId: string,
+    @Param('unitTypeId') unitTypeId: string,
+  ) {
+    return this.unitTypes.remove(orgId, propertyId, unitTypeId);
   }
 }

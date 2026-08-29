@@ -1,7 +1,10 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
+  HttpCode,
+  HttpStatus,
   Param,
   Patch,
   Post,
@@ -59,5 +62,20 @@ export class UnitsController {
     @Body() dto: UpdateUnitDto,
   ) {
     return this.units.update(orgId, propertyId, unitId, dto);
+  }
+
+  /**
+   * Sólo si nunca se vendió. Con reservas encima se rechaza y se ofrece
+   * `active: false`, que la saca de la venta sin tocar el historial.
+   */
+  @Delete(':unitId')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @Roles(MemberRole.OWNER, MemberRole.MANAGER)
+  remove(
+    @Param('orgId') orgId: string,
+    @Param('propertyId') propertyId: string,
+    @Param('unitId') unitId: string,
+  ) {
+    return this.units.remove(orgId, propertyId, unitId);
   }
 }

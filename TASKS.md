@@ -35,14 +35,17 @@ editando el texto) — yo voy tildando lo que completamos en cada sesión.
 
 - [x] Esquema de base de datos y migraciones
 - [ ] Seeds con el inventario real del hotel _(el seed de desarrollo ya crea inventario y reservas relativas a hoy; falta el inventario real de Julius — depende de un ítem P0)_
-- [x] Auth: login, sesiones _(recuperación de contraseña sigue pendiente — el modelo `VerificationToken` existe pero no tiene endpoint)_
+- [x] Auth: login, sesiones y **recuperación de contraseña** _(por correo con token de un solo uso, y desde gerencia con contraseña temporal. Al restablecer se cierran todas las sesiones abiertas)_
+- [x] **Gestión del equipo**: crear, cambiar de rol y sacar personal desde el panel _(la contraseña temporal la genera el servidor y se muestra una sola vez)_
+- [x] **Gestión de inventario**: tipos y habitaciones desde el panel, con borrado protegido por reservas
+- [x] **Editar reservas**: fechas, huéspedes, habitación y notas, con recotización automática
 - [x] Roles y permisos: propietario, gerencia, recepción, camarería
 - [x] Motor de disponibilidad en el servidor
 - [x] Motor de precios: temporadas, fin de semana y planes tarifarios _(incluye ITBMS 10%, estadía mínima por fecha y cierres de venta → [`docs/flujo-precios.md`](docs/flujo-precios.md))_
 - [x] CRUD de reservas y máquina de estados _(carga de staff y **reserva directa del huésped**; el depósito depende de pagos, P3)_
 - [x] **API pública para el sitio del huésped** _(el único módulo sin autenticación: devuelve tipos y no unidades, recalcula el precio en el servidor, limita por IP y no deja sobrescribir la ficha de un huésped existente)_
-- [ ] Job que libere las retenciones vencidas _(hoy se barren de forma perezosa al consultar disponibilidad; sin nadie mirando, una retención puede pasar de 48 h)_
-- [ ] Aviso al hotel cuando entra una solicitud _(hoy sólo se ve abriendo el panel)_
+- [x] Job que libere las retenciones vencidas _(cada diez minutos, además del barrido perezoso al consultar disponibilidad)_
+- [x] Aviso al hotel cuando entra una solicitud _(contador en el menú, visible desde cualquier pantalla del panel. El aviso por correo o WhatsApp depende del proveedor)_
 - [x] Endpoints de camarería y estados de habitación _(estado de limpieza por unidad, tablero del día con ocupación derivada, bitácora de quién cambió qué, y el check-out ensucia la habitación solo → [`docs/flujo-camareria.md`](docs/flujo-camareria.md))_
 - [x] Endpoints de tarifas y temporadas _(CRUD de planes, cotización y calendario de tarifas)_
 - [x] Endpoints de reportes y agregaciones _(ingreso neto sin ITBMS, ocupación, ADR y RevPAR, con prorrateo por noche y desglose por tipo de unidad y origen → [`docs/flujo-reportes.md`](docs/flujo-reportes.md))_

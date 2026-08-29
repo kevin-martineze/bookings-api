@@ -104,6 +104,8 @@ editando el texto) — yo voy tildando lo que completamos en cada sesión.
 - [x] **Editor de tarifas en el panel** _(crear, editar y borrar temporadas desde Tarifas, con precio de fin de semana, mínimo de noches y cierre de venta. Se agregó `DELETE` de planes al backend: sin él, un plan cargado con la fecha equivocada quedaba para siempre)_
 - [x] `GET /health` que consulta la base _(un chequeo que no la consulta declara sano un servidor que no puede atender una sola reserva)_
 - [x] Bug real encontrado y corregido: la página de Tarifas le pasaba **funciones** de formato de un Server Component a uno de cliente, lo que no se puede serializar y tiraba la pantalla entera. Lo detectó la frontera de error recién agregada
+- [x] Bug real encontrado y corregido: el panel de Hoy calculaba ADR, RevPAR e ingreso **con** impuesto y Reportes **sin**, así que el mismo hotel mostraba $88 en una pantalla y $80 en la otra
+- [x] Bug real encontrado y corregido: la barra lateral seguía avisando que camarería, tarifas y reportes "usan datos de demostración" cuando ya eran todos reales
 - [x] **Bloqueo por rol a nivel de página** _(verificado: recepción en `/admin/reports` y camarería en `/admin` o `/admin/rates` ven "esta sección no es para tu rol". `ROLE_ACCESS` salió de `lib/mock/` a `lib/auth/`: dejó de ser dato de demostración el día que empezó a decidir accesos)_
 - [x] Bug real encontrado y corregido: el seed dejaba las reservas con ITBMS cero (eran de antes del motor de precios) y no las repisaba al recorrer, así que el reporte de ingresos mostraba impuesto cero y parecía un bug del reporte
 - [ ] Quitar el DemoSwitcher del panel _(sigue apareciendo la barra "Site / System / Proposal" sobre el tablero)_

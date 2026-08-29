@@ -9,6 +9,10 @@ import {
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { MemberRole } from '@prisma/client';
+import {
+  CurrentUser,
+  type AuthenticatedUser,
+} from '../auth/decorators/current-user.decorator';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { OrgRolesGuard } from '../auth/guards/org-roles.guard';
@@ -74,8 +78,11 @@ export class BookingsController {
     @Param('orgId') orgId: string,
     @Param('propertyId') propertyId: string,
     @Param('bookingId') bookingId: string,
+    @CurrentUser() user: AuthenticatedUser,
   ) {
-    return this.bookings.checkOut(orgId, propertyId, bookingId);
+    // Quién hizo el check-out queda en la bitácora de camarería: es el mismo
+    // acto que deja la habitación sucia.
+    return this.bookings.checkOut(orgId, propertyId, bookingId, user.id);
   }
 
   @Post(':bookingId/cancel')

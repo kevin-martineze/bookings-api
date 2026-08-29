@@ -7,6 +7,7 @@ import {
 import { BookingSource, BookingStatus } from '@prisma/client';
 import { PropertiesService } from '../catalog/properties.service';
 import { UnitTypesService } from '../catalog/unit-types.service';
+import { HousekeepingService } from '../housekeeping/housekeeping.service';
 import { PricingService } from '../pricing/pricing.service';
 import {
   isOverlapConflict,
@@ -25,6 +26,7 @@ export class BookingsService {
     private readonly properties: PropertiesService,
     private readonly unitTypes: UnitTypesService,
     private readonly pricing: PricingService,
+    private readonly housekeeping: HousekeepingService,
   ) {}
 
   /**
@@ -190,13 +192,32 @@ export class BookingsService {
     );
   }
 
-  async checkOut(orgId: string, propertyId: string, bookingId: string) {
-    return this.transition(
-      orgId,
-      propertyId,
-      bookingId,
-      BookingStatus.CHECKED_OUT,
-    );
+  /**
+   * El check-out cierra la estadía y deja la habitación sucia, en la misma
+   * transacción.
+   *
+   * Es la única automatización de camarería, y evita el error más caro de
+   * recepción: vender una habitación que nadie limpió. Va junto porque son un
+   * solo hecho — si el estado de la reserva cambiara y el de la unidad no, el
+   * sistema afirmaría que la habitación está limpia porque falló un UPDATE.
+   */
+  async checkOut(
+    orgId: string,
+    propertyId: string,
+    bookingId: string,
+    actorId: string,
+  ) {
+    const booking = await this.findOrThrow(orgId, propertyId, bookingId);
+    assertTransition(booking.status, BookingStatus.CHECKED_OUT);
+
+    return this.prisma.$transaction(async (tx) => {
+      const updated = await tx.booking.update({
+        where: { id: bookingId },
+        data: { status: BookingStatus.CHECKED_OUT },
+      });
+      await this.housekeeping.markDirtyAfterCheckOut(tx, booking.unit, actorId);
+      return updated;
+    });
   }
 
   async noShow(orgId: string, propertyId: string, bookingId: string) {

@@ -40,12 +40,12 @@ editando el texto) — yo voy tildando lo que completamos en cada sesión.
 - [x] Motor de disponibilidad en el servidor
 - [x] Motor de precios: temporadas, fin de semana y planes tarifarios _(incluye ITBMS 10%, estadía mínima por fecha y cierres de venta → [`docs/flujo-precios.md`](docs/flujo-precios.md))_
 - [x] CRUD de reservas y máquina de estados _(solo carga de staff; la reserva directa del huésped con depósito depende de pagos, P3)_
-- [ ] Endpoints de camarería y estados de habitación
+- [x] Endpoints de camarería y estados de habitación _(estado de limpieza por unidad, tablero del día con ocupación derivada, bitácora de quién cambió qué, y el check-out ensucia la habitación solo → [`docs/flujo-camareria.md`](docs/flujo-camareria.md))_
 - [x] Endpoints de tarifas y temporadas _(CRUD de planes, cotización y calendario de tarifas)_
 - [ ] Endpoints de reportes y agregaciones
 - [ ] Correos transaccionales: confirmación, recordatorio, cancelación
 - [ ] Notificaciones por WhatsApp
-- [x] Tests del motor de disponibilidad y de precios _(46 tests en total: solapamiento de fechas, transiciones de estado, y el motor de precios completo — fin de semana, plan más específico, mínimos, cierres, cuadre del impuesto)_
+- [x] Tests del motor de disponibilidad y de precios _(69 tests en total: solapamiento de fechas, transiciones de estado, el motor de precios completo — fin de semana, plan más específico, mínimos, cierres, cuadre del impuesto — y la derivación de estados de camarería)_
 - [ ] Desplegar el backend con sus variables de entorno
 - [ ] Backups automáticos y monitoreo de errores
 
@@ -62,7 +62,7 @@ editando el texto) — yo voy tildando lo que completamos en cada sesión.
 
 - [ ] Conectar el sitio del huésped a la API real
 - [ ] Conectar el checkout a los pagos reales
-- [ ] Conectar el PMS completo a la API real _(hecho: hoy, calendario y reservas. Faltan: camarería, tarifas y reportes — dependen de sus propios endpoints, todavía sin construir)_
+- [ ] Conectar el PMS completo a la API real _(hecho: hoy, calendario, reservas, tarifas y camarería. Falta reportes — depende de sus propios endpoints, todavía sin construir)_
 - [x] Pantallas de login y restricción por rol _(login real con sesión en cookie httpOnly que sobrevive recargas; el nav se restringe por rol real. Falta bloquear por rol a nivel de página, no sólo ocultar el enlace)_
 - [ ] Estados de carga, error y vacío en todas las vistas
 - [ ] Revisar el responsive en un móvil real
@@ -98,8 +98,12 @@ editando el texto) — yo voy tildando lo que completamos en cada sesión.
 - [x] Pantalla de Tarifas conectada a datos reales _(mapa de 4 semanas + temporadas; **falta poder editarlas desde ahí**)_
 - [x] Refactor: se eliminó `nightsBetween` duplicada — el motor de precios cuenta las noches, y dos funciones contando lo mismo terminan discrepando en una factura
 - [x] Commitear el trabajo de hoy en ambos repos _(9 commits en bookings-api sobre `feat/api-real-motor-de-precios`, 4 en pms-frontend sobre `feat/panel-sobre-api-real`. **Falta mergear a `main` y publicar** — nada está en GitHub todavía)_
+- [x] **Camarería completa**: tablero real en el panel, marcado de limpieza desde el celular, asignación a personal real y bitácora → [`docs/flujo-camareria.md`](docs/flujo-camareria.md)
+- [x] Bug real encontrado y corregido: la migración de camarería creaba `created_at` cuando el resto del schema deja `createdAt` sin mapear; el tablero devolvía 500. Migración deshecha y reaplicada corregida.
 - [ ] Selector de alojamiento en el panel _(hace falta cuando entren las casas; hoy toma el primero)_
 - [ ] Editor de tarifas en el panel _(hoy los planes se cargan por API o seed)_
+- [ ] **Bloqueo por rol a nivel de página** _(hoy la restricción es por endpoint y ocultando enlaces; camarería que escriba la URL de reportes entra)_
+- [ ] Quitar el DemoSwitcher del panel _(sigue apareciendo la barra "Site / System / Proposal" sobre el tablero)_
 
 ## Preguntas abiertas para Julius
 

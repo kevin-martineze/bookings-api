@@ -1,6 +1,12 @@
 import 'dotenv/config';
 import { PrismaPg } from '@prisma/adapter-pg';
-import { BookingSource, BookingStatus, MemberRole, PrismaClient } from '@prisma/client';
+import {
+  BookingSource,
+  BookingStatus,
+  HousekeepingStatus,
+  MemberRole,
+  PrismaClient,
+} from '@prisma/client';
 import * as argon2 from 'argon2';
 
 /**
@@ -19,6 +25,12 @@ const SEED_USERS = [
     fullName: 'Yaritza (recepción)',
     password: 'FrontDeskDev123!',
     role: MemberRole.FRONT_DESK,
+  },
+  {
+    email: 'camareria@daughtersofsun.test',
+    fullName: 'Marisol (camarería)',
+    password: 'HousekeepingDev123!',
+    role: MemberRole.HOUSEKEEPING,
   },
 ];
 
@@ -103,17 +115,36 @@ async function main() {
     },
   });
 
+  /* Estados de limpieza distintos a propósito: un tablero donde todo está
+     limpio no muestra nada. La 102 arranca sucia y con una nota de
+     mantenimiento; el resto limpio, y el check-out de hoy ensuciará la suya
+     solo. */
   const unitSeeds = [
-    { label: '101', unitTypeId: standardDouble.id },
-    { label: '102', unitTypeId: standardDouble.id },
-    { label: '201', unitTypeId: suiteTerraza.id },
+    { label: '101', unitTypeId: standardDouble.id, housekeepingStatus: HousekeepingStatus.CLEAN },
+    {
+      label: '102',
+      unitTypeId: standardDouble.id,
+      housekeepingStatus: HousekeepingStatus.DIRTY,
+      housekeepingNote: 'El aire acondicionado no enfría — avisar a mantenimiento.',
+    },
+    { label: '201', unitTypeId: suiteTerraza.id, housekeepingStatus: HousekeepingStatus.INSPECTED },
   ];
   const units = new Map<string, string>();
   for (const unit of unitSeeds) {
     const created = await prisma.unit.upsert({
       where: { propertyId_label: { propertyId: property.id, label: unit.label } },
-      update: {},
-      create: { orgId: org.id, propertyId: property.id, unitTypeId: unit.unitTypeId, label: unit.label },
+      update: {
+        housekeepingStatus: unit.housekeepingStatus,
+        housekeepingNote: unit.housekeepingNote ?? null,
+      },
+      create: {
+        orgId: org.id,
+        propertyId: property.id,
+        unitTypeId: unit.unitTypeId,
+        label: unit.label,
+        housekeepingStatus: unit.housekeepingStatus,
+        housekeepingNote: unit.housekeepingNote ?? null,
+      },
     });
     units.set(unit.label, created.id);
   }

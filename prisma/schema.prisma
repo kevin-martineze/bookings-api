@@ -81,6 +81,11 @@ model User {
   refreshTokens RefreshToken[]
   tokens        VerificationToken[]
 
+  /// Habitaciones que tiene asignadas ahora mismo, y la bitácora de limpieza
+  /// que fue dejando.
+  assignedUnits     Unit[]
+  housekeepingLog   HousekeepingEvent[]
+
   @@map("users")
 }
 
@@ -254,6 +259,27 @@ model UnitType {
   @@map("unit_types")
 }
 
+/// Estado de limpieza de una unidad.
+///
+/// Deliberadamente NO incluye "fuera de servicio": eso ya lo dice `Unit.active`,
+/// que es además lo que respeta el motor de disponibilidad. Dos campos capaces
+/// de decir lo mismo terminan discrepando, y el que discrepe va a ser el que no
+/// mira quien asigna la habitación.
+///
+/// Tampoco incluye "ocupada" ni "sale hoy": eso se deriva de las reservas. Un
+/// estado de ocupación guardado se desactualiza en cuanto alguien mueve una
+/// reserva, y nadie se entera hasta que el pasillo no coincide con la pantalla.
+enum HousekeepingStatus {
+  /// Necesita limpieza. Es el estado al que cae sola tras un check-out.
+  DIRTY
+  /// Limpia, lista para vender.
+  CLEAN
+  /// Limpia y verificada por supervisión. Opcional: un hotel chico puede no usarlo.
+  INSPECTED
+
+  @@map("housekeeping_status")
+}
+
 /// Una unidad física reservable: la habitación 302, el apartamento B.
 ///
 /// Existe aunque el negocio venda por tipo. Es el sujeto de la restricción de
@@ -269,17 +295,62 @@ model Unit {
   /// Fuera de servicio por mantenimiento: no se le asignan reservas nuevas.
   active Boolean @default(true)
 
+  /// Arranca en CLEAN: una unidad recién cargada al sistema todavía no fue
+  /// ensuciada por nadie, y obligar a limpiar habitaciones vacías el primer día
+  /// sería ruido.
+  housekeepingStatus HousekeepingStatus @default(CLEAN) @map("housekeeping_status")
+
+  /// Nota operativa visible en el tablero: "aire acondicionado no enfría".
+  /// Es de camarería, no del huésped; las notas del huésped viven en la reserva.
+  housekeepingNote String? @map("housekeeping_note")
+
+  /// A quién le toca esta habitación. Es la asignación *del turno actual*: se
+  /// reescribe cada día, no guarda historial. Quién limpió realmente qué y
+  /// cuándo lo responde `HousekeepingEvent`.
+  housekeeperId String? @map("housekeeper_id") @db.Uuid
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  property Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
-  unitType UnitType @relation(fields: [unitTypeId], references: [id], onDelete: Restrict)
-  bookings Booking[]
+  property          Property            @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  unitType          UnitType            @relation(fields: [unitTypeId], references: [id], onDelete: Restrict)
+  housekeeper       User?               @relation(fields: [housekeeperId], references: [id], onDelete: SetNull)
+  bookings          Booking[]
+  housekeepingLog   HousekeepingEvent[]
 
   @@unique([propertyId, label])
   @@index([orgId])
   @@index([unitTypeId])
   @@map("units")
+}
+
+/// Bitácora de limpieza: quién cambió el estado de una unidad, cuándo y desde
+/// qué estado.
+///
+/// Existe porque "¿quién limpió la 302 ayer?" es una pregunta real en un hotel
+/// cuando un huésped se queja, y el estado actual de la unidad no puede
+/// responderla. Es append-only: nada la edita ni la borra.
+model HousekeepingEvent {
+  id     String @id @default(uuid()) @db.Uuid
+  orgId  String @map("org_id") @db.Uuid
+  unitId String @map("unit_id") @db.Uuid
+
+  fromStatus HousekeepingStatus @map("from_status")
+  toStatus   HousekeepingStatus @map("to_status")
+
+  /// Nullable porque el check-out puede ensuciar la unidad sin que nadie toque
+  /// el tablero, y porque un usuario borrado no debe llevarse la bitácora.
+  actorId String? @map("actor_id") @db.Uuid
+  note    String?
+
+  createdAt DateTime @default(now())
+
+  unit  Unit  @relation(fields: [unitId], references: [id], onDelete: Cascade)
+  actor User? @relation(fields: [actorId], references: [id], onDelete: SetNull)
+
+  @@index([unitId, createdAt])
+  @@index([orgId])
+  @@map("housekeeping_events")
 }
 
 /// Precio y restricciones para un rango de fechas. Permite temporada alta,

@@ -1,7 +1,10 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
+  HttpCode,
+  HttpStatus,
   Param,
   Patch,
   Post,
@@ -66,6 +69,18 @@ export class RatePlansController {
       ratePlanId,
       dto,
     );
+  }
+
+  @Delete(':ratePlanId')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @Roles(MemberRole.OWNER, MemberRole.MANAGER)
+  remove(
+    @Param('orgId') orgId: string,
+    @Param('propertyId') propertyId: string,
+    @Param('unitTypeId') unitTypeId: string,
+    @Param('ratePlanId') ratePlanId: string,
+  ) {
+    return this.pricing.deletePlan(orgId, propertyId, unitTypeId, ratePlanId);
   }
 }
 

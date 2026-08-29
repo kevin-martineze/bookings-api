@@ -46,8 +46,8 @@ editando el texto) — yo voy tildando lo que completamos en cada sesión.
 - [ ] Correos transaccionales: confirmación, recordatorio, cancelación
 - [ ] Notificaciones por WhatsApp
 - [x] Tests del motor de disponibilidad y de precios _(69 tests en total: solapamiento de fechas, transiciones de estado, el motor de precios completo — fin de semana, plan más específico, mínimos, cierres, cuadre del impuesto — y la derivación de estados de camarería)_
-- [ ] Desplegar el backend con sus variables de entorno
-- [ ] Backups automáticos y monitoreo de errores
+- [ ] Desplegar el backend con sus variables de entorno _(**preparado, no ejecutado**: pasos, variables y verificación en [`docs/despliegue.md`](docs/despliegue.md); `GET /health` consulta la base y devuelve 503 si no responde. Falta crear las cuentas a nombre de Julius — P0)_
+- [ ] Backups automáticos y monitoreo de errores _(documentado qué hace falta y por qué; sin proveedor todavía. Sentry sin instalar)_
 
 ## P3 — pagos
 
@@ -64,12 +64,12 @@ editando el texto) — yo voy tildando lo que completamos en cada sesión.
 - [ ] Conectar el checkout a los pagos reales
 - [x] **Conectar el PMS completo a la API real** _(hoy, calendario, reservas, tarifas, camarería y reportes: ninguna pantalla del panel lee mocks)_
 - [x] Pantallas de login y restricción por rol _(login real con sesión en cookie httpOnly que sobrevive recargas, nav restringido por rol real, y bloqueo por rol **a nivel de página**: quien escriba la URL de una sección que no le toca ve un mensaje explícito)_
-- [ ] Estados de carga, error y vacío en todas las vistas
-- [ ] Revisar el responsive en un móvil real
+- [x] Estados de carga, error y vacío en todas las vistas _(`loading.tsx` con esqueleto y `error.tsx` con reintento a nivel del segmento `/admin`, así cubren toda pantalla del panel; vacíos en tarifas, camarería y reportes)_
+- [ ] Revisar el responsive en un móvil real _(verificado en Chromium a 390×844 en las seis pantallas: ninguna desborda horizontalmente. **Falta un teléfono físico** — el táctil, el teclado en pantalla y la barra del navegador no se simulan)_
 - [ ] SEO: metadata, sitemap y JSON-LD de Hotel y HotelRoom
 - [ ] Rendimiento: LCP bajo 2.5s en portada y ficha de unidad
 - [ ] Auditoría de accesibilidad: teclado, foco visible, axe
-- [ ] Quitar todos los datos de demostración y el DemoSwitcher
+- [ ] Quitar todos los datos de demostración y el DemoSwitcher _(fuera del panel, que ya no tiene ni un dato falso. Sigue en el sitio del huésped y en `/proposal`, que todavía son material de demostración)_
 
 ## P5 — lanzamiento
 
@@ -100,8 +100,10 @@ editando el texto) — yo voy tildando lo que completamos en cada sesión.
 - [x] Commitear el trabajo de hoy en ambos repos _(9 commits en bookings-api sobre `feat/api-real-motor-de-precios`, 4 en pms-frontend sobre `feat/panel-sobre-api-real`. **Falta mergear a `main` y publicar** — nada está en GitHub todavía)_
 - [x] **Camarería completa**: tablero real en el panel, marcado de limpieza desde el celular, asignación a personal real y bitácora → [`docs/flujo-camareria.md`](docs/flujo-camareria.md)
 - [x] Bug real encontrado y corregido: la migración de camarería creaba `created_at` cuando el resto del schema deja `createdAt` sin mapear; el tablero devolvía 500. Migración deshecha y reaplicada corregida.
-- [ ] Selector de alojamiento en el panel _(hace falta cuando entren las casas; hoy toma el primero)_
-- [ ] Editor de tarifas en el panel _(hoy los planes se cargan por API o seed)_
+- [x] **Selector de alojamiento en el panel** _(la elección vive en una cookie y se valida contra los alojamientos de la sesión; con uno solo se muestra como etiqueta, no como menú de un elemento. Verificado con dos alojamientos)_
+- [x] **Editor de tarifas en el panel** _(crear, editar y borrar temporadas desde Tarifas, con precio de fin de semana, mínimo de noches y cierre de venta. Se agregó `DELETE` de planes al backend: sin él, un plan cargado con la fecha equivocada quedaba para siempre)_
+- [x] `GET /health` que consulta la base _(un chequeo que no la consulta declara sano un servidor que no puede atender una sola reserva)_
+- [x] Bug real encontrado y corregido: la página de Tarifas le pasaba **funciones** de formato de un Server Component a uno de cliente, lo que no se puede serializar y tiraba la pantalla entera. Lo detectó la frontera de error recién agregada
 - [x] **Bloqueo por rol a nivel de página** _(verificado: recepción en `/admin/reports` y camarería en `/admin` o `/admin/rates` ven "esta sección no es para tu rol". `ROLE_ACCESS` salió de `lib/mock/` a `lib/auth/`: dejó de ser dato de demostración el día que empezó a decidir accesos)_
 - [x] Bug real encontrado y corregido: el seed dejaba las reservas con ITBMS cero (eran de antes del motor de precios) y no las repisaba al recorrer, así que el reporte de ingresos mostraba impuesto cero y parecía un bug del reporte
 - [ ] Quitar el DemoSwitcher del panel _(sigue apareciendo la barra "Site / System / Proposal" sobre el tablero)_

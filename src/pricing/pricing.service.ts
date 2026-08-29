@@ -83,6 +83,28 @@ export class PricingService {
     });
   }
 
+  /**
+   * Borra un plan tarifario.
+   *
+   * Se borra de verdad y no se marca como inactivo: un plan no es un hecho
+   * histórico. Lo que se le cobró a un huésped ya está congelado en su reserva
+   * (`subtotalMinor`, `taxMinor`, `totalMinor`), así que borrar la temporada de
+   * diciembre no altera ninguna factura de diciembre.
+   *
+   * Existe porque sin esto un plan cargado con la fecha equivocada quedaría
+   * para siempre, y la única salida sería marcarlo `closed` — que significa
+   * "no se vende esta noche", no "esto no debería existir".
+   */
+  async deletePlan(
+    orgId: string,
+    propertyId: string,
+    unitTypeId: string,
+    ratePlanId: string,
+  ) {
+    await this.findPlanOrThrow(orgId, propertyId, unitTypeId, ratePlanId);
+    await this.prisma.ratePlan.delete({ where: { id: ratePlanId } });
+  }
+
   async findPlanOrThrow(
     orgId: string,
     propertyId: string,

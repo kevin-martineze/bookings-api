@@ -97,7 +97,7 @@ editando el texto) — yo voy tildando lo que completamos en cada sesión.
 - [x] Bug real encontrado y corregido: el seed usaba "hoy" en UTC y el panel la fecha local, así que en Panamá (UTC-5) el dashboard mostraba cero llegadas después de las 7pm
 - [x] Pantalla de Tarifas conectada a datos reales _(mapa de 4 semanas + temporadas; **falta poder editarlas desde ahí**)_
 - [x] Refactor: se eliminó `nightsBetween` duplicada — el motor de precios cuenta las noches, y dos funciones contando lo mismo terminan discrepando en una factura
-- [ ] Commitear el trabajo de hoy en ambos repos _(sigue pendiente tu confirmación)_
+- [x] Commitear el trabajo de hoy en ambos repos _(9 commits en bookings-api sobre `feat/api-real-motor-de-precios`, 4 en pms-frontend sobre `feat/panel-sobre-api-real`. **Falta mergear a `main` y publicar** — nada está en GitHub todavía)_
 - [ ] Selector de alojamiento en el panel _(hace falta cuando entren las casas; hoy toma el primero)_
 - [ ] Editor de tarifas en el panel _(hoy los planes se cargan por API o seed)_
 
